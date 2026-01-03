@@ -14,7 +14,6 @@ use crate::shared::domain::model::entities::auditable_model::AuditableModel;
 use sea_orm::*;
 use std::error::Error;
 use std::str::FromStr;
-use bcrypt::{hash, DEFAULT_COST};
 
 pub struct IdentityRepositoryImpl {
     db: DatabaseConnection,
@@ -28,12 +27,13 @@ impl IdentityRepositoryImpl {
 
 impl IdentityRepository for IdentityRepositoryImpl {
     async fn save(&self, identity: DomainIdentity) -> Result<DomainIdentity, Box<dyn Error + Send + Sync>> {
-        let hashed_password = hash(identity.password().value(), DEFAULT_COST)?;
+        // Password is already hashed by the service layer
+        let password_hash_value = identity.password().value().to_string();
 
         let active_model = ActiveModel {
             id: Set(identity.id().0),
             email: Set(identity.email().value().to_string()),
-            password_hash: Set(hashed_password),
+            password_hash: Set(password_hash_value),
             provider: Set(identity.provider().to_string()),
             is_verified: Set(identity.is_verified()),
             created_at: Set(identity.audit().created_at),
@@ -66,7 +66,7 @@ impl IdentityRepository for IdentityRepositoryImpl {
                 Ok(Some(DomainIdentity::new(
                     IdentityId::from_uuid(m.id),
                     email,
-                    Password::new(m.password_hash),
+                    Password::new(m.password_hash).map_err(|e| Box::<dyn Error + Send + Sync>::from(e))?,
                     provider,
                     m.is_verified,
                     audit

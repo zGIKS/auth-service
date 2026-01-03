@@ -18,3 +18,7 @@ thiserror = "2"
 tracing = "0.1"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 bcrypt = "0.17.1"
+trust-dns-resolver = "0.23.2"
+
+[dev-dependencies]
+mockall = "0.14.0"
