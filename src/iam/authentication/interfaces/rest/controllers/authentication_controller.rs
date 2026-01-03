@@ -42,7 +42,7 @@ pub async fn signin(
     let identity_repo = IdentityRepositoryImpl::new(state.db.clone());
     let identity_facade = IdentityFacadeImpl::new(identity_repo);
     let token_service = JwtTokenService::new(state.jwt_secret.clone());
-    let session_repo = RedisSessionRepository::new(state.redis.clone());
+    let session_repo = RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
     
     let service = AuthenticationCommandServiceImpl::new(identity_facade, token_service, session_repo);
 

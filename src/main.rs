@@ -24,6 +24,10 @@ async fn main() {
     let redis_client = redis_infra::connect().await;
 
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+    let session_duration_seconds: u64 = std::env::var("SESSION_DURATION_SECONDS")
+        .unwrap_or_else(|_| "3600".to_string())
+        .parse()
+        .unwrap_or(3600);
 
     // Create table if not exists
     let builder = db.get_database_backend();
@@ -40,6 +44,7 @@ async fn main() {
         db,
         redis: redis_client,
         jwt_secret,
+        session_duration_seconds,
     };
 
     let app = Router::new()
