@@ -1,4 +1,4 @@
-use axum::http::{Method, HeaderValue};
+use axum::http::Method;
 use tower_http::cors::{CorsLayer, Any};
 
 pub struct WebConfiguration;

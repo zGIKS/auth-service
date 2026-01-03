@@ -1,31 +1,28 @@
-use axum::{routing::get, Router};
-use utoipa::{OpenApi};
+use axum::{routing::post, Router};
+use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use dotenvy::dotenv;
+use sea_orm::{Database, Schema, ConnectionTrait};
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(hello),
+    paths(
+        iam::identity::interfaces::rest::controllers::identity_controller::register_identity
+    ),
+    components(
+        schemas(
+            iam::identity::interfaces::rest::resources::register_identity_resource::RegisterIdentityRequest,
+            iam::identity::interfaces::rest::resources::register_identity_resource::RegisterIdentityResponse
+        )
+    ),
     tags(
-        (name = "hello", description = "Hello World endpoint")
+        (name = "identity", description = "Identity management")
     )
 )]
 struct ApiDoc;
 
-/// Hello World endpoint
-#[utoipa::path(
-    get,
-    path = "/hello",
-    tag = "hello",
-    responses(
-        (status = 200, description = "Hello World response", body = String)
-    )
-)]
-async fn hello() -> String {
-    "Hello World".to_string()
-}
-
 mod shared;
+mod iam;
 
 #[tokio::main]
 async fn main() {
@@ -36,9 +33,24 @@ async fn main() {
         .parse()
         .unwrap_or(3000);
 
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db = Database::connect(&database_url).await.expect("Failed to connect to DB");
+
+    // Create table if not exists
+    let builder = db.get_database_backend();
+    let schema = Schema::new(builder);
+    let mut create_table_op = schema.create_table_from_entity(iam::identity::infrastructure::persistence::postgres::model::Entity);
+    let stmt = builder.build(create_table_op.if_not_exists());
+
+    match db.execute(stmt).await {
+        Ok(_) => println!("Table 'users' checked/created successfully."),
+        Err(e) => eprintln!("Error creating table: {}", e),
+    }
+
     let app = Router::new()
-        .route("/hello", get(hello))
-        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()));
+        .route("/api/v1/auth/sign-up", post(iam::identity::interfaces::rest::controllers::identity_controller::register_identity))
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        .with_state(db);
 
     let addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr)
