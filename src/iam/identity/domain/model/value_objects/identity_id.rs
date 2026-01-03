@@ -13,6 +13,10 @@ impl IdentityId {
     pub fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
     }
+
+    pub fn value(&self) -> Uuid {
+        self.0
+    }
 }
 
 impl Default for IdentityId {
