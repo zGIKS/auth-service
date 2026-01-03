@@ -12,6 +12,7 @@ use crate::iam::identity::domain::model::commands::register_identity_command::Re
 use crate::iam::identity::domain::model::value_objects::{
     email::Email, password::Password, auth_provider::AuthProvider
 };
+use crate::iam::identity::domain::error::DomainError;
 use crate::iam::identity::interfaces::rest::resources::register_identity_resource::{
     RegisterIdentityRequest, RegisterIdentityResponse
 };
@@ -23,7 +24,7 @@ use crate::iam::identity::infrastructure::persistence::postgres::repositories::i
     tag = "identity",
     request_body = RegisterIdentityRequest,
     responses(
-        (status = 201, description = "User registered successfully", body = RegisterIdentityResponse),
+        (status = 201, description = "Identity registered successfully", body = RegisterIdentityResponse),
         (status = 400, description = "Bad Request"),
         (status = 500, description = "Internal Server Error")
     )
@@ -41,7 +42,10 @@ pub async fn register_identity(
         Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid email: {}", e)).into_response(),
     };
 
-    let password = Password::new(payload.password);
+    let password = match Password::new(payload.password) {
+        Ok(p) => p,
+        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
+    };
 
     // Default values: Provider = Email, is_verified = false
     let provider = AuthProvider::Email;
@@ -60,12 +64,14 @@ pub async fn register_identity(
     match service.handle(command).await {
         Ok(_identity) => {
             let resource = RegisterIdentityResponse {
-                message: "User registered successfully".to_string(),
+                message: "Identity registered successfully".to_string(),
             };
             (StatusCode::CREATED, Json(resource)).into_response()
         },
-        Err(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        Err(e) => match e {
+            DomainError::EmailAlreadyExists => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+            DomainError::InvalidEmailDomain(_) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+            DomainError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
         }
     }
 }

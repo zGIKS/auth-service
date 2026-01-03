@@ -6,9 +6,11 @@ pub struct Password {
 }
 
 impl Password {
-    pub fn new(value: String) -> Self {
-        // TODO: Add complexity validation here
-        Self { value }
+    pub fn new(value: String) -> Result<Self, String> {
+        if value.len() < 12 || value.len() > 72 {
+            return Err("Password must be between 12 and 72 characters".to_string());
+        }
+        Ok(Self { value })
     }
 
     pub fn value(&self) -> &str {

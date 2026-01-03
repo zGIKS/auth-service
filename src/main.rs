@@ -3,26 +3,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use dotenvy::dotenv;
 use sea_orm::{Database, Schema, ConnectionTrait};
-
-#[derive(OpenApi)]
-#[openapi(
-    paths(
-        iam::identity::interfaces::rest::controllers::identity_controller::register_identity
-    ),
-    components(
-        schemas(
-            iam::identity::interfaces::rest::resources::register_identity_resource::RegisterIdentityRequest,
-            iam::identity::interfaces::rest::resources::register_identity_resource::RegisterIdentityResponse
-        )
-    ),
-    tags(
-        (name = "identity", description = "Identity management")
-    )
-)]
-struct ApiDoc;
-
-mod shared;
-mod iam;
+use auth_service::{iam, ApiDoc};
 
 #[tokio::main]
 async fn main() {
