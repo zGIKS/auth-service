@@ -7,8 +7,8 @@ pub struct Password {
 
 impl Password {
     pub fn new(value: String) -> Result<Self, String> {
-        if value.len() < 12 || value.len() > 72 {
-            return Err("Password must be between 12 and 72 characters".to_string());
+        if value.len() < 6 || value.len() > 72 {
+            return Err("Password must be between 6 and 72 characters".to_string());
         }
         Ok(Self { value })
     }
