@@ -44,7 +44,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/api/v1/auth/sign-up", post(iam::identity::interfaces::rest::controllers::identity_controller::register_identity))
-        .route("/api/v1/auth/login", post(iam::authentication::interfaces::rest::controllers::authentication_controller::login))
+        .route("/api/v1/auth/signin", post(iam::authentication::interfaces::rest::controllers::authentication_controller::signin))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .with_state(state);
 

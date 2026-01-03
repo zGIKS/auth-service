@@ -1,5 +1,5 @@
 use crate::iam::authentication::domain::{
-    model::{commands::login_command::LoginCommand, value_objects::token::Token},
+    model::{commands::signin_command::SigninCommand, value_objects::token::Token},
     services::authentication_command_service::{AuthenticationCommandService, SessionRepository, TokenService},
 };
 use crate::iam::identity::interfaces::acl::identity_facade::IdentityFacade;
@@ -38,7 +38,7 @@ where
     T: TokenService,
     S: SessionRepository,
 {
-    async fn login(&self, command: LoginCommand) -> Result<Token, Box<dyn Error + Send + Sync>> {
+    async fn signin(&self, command: SigninCommand) -> Result<Token, Box<dyn Error + Send + Sync>> {
         let user_id = self.identity_facade.verify_credentials(command.email, command.password).await?;
         
         match user_id {

@@ -5,14 +5,14 @@ use axum::{
 };
 use crate::shared::interfaces::rest::app_state::AppState;
 use crate::iam::authentication::{
-    domain::model::commands::login_command::LoginCommand,
+    domain::model::commands::signin_command::SigninCommand,
     infrastructure::{
         services::jwt_token_service::JwtTokenService,
         persistence::redis::redis_session_repository::RedisSessionRepository,
     },
     application::command_services::authentication_command_service_impl::AuthenticationCommandServiceImpl,
     domain::services::authentication_command_service::AuthenticationCommandService,
-    interfaces::rest::resources::login_resource::{LoginResource, TokenResponse},
+    interfaces::rest::resources::signin_resource::{SigninResource, TokenResponse},
 };
 use crate::iam::identity::{
     infrastructure::persistence::postgres::repositories::identity_repository_impl::IdentityRepositoryImpl,
@@ -22,18 +22,18 @@ use validator::Validate;
 
 #[utoipa::path(
     post,
-    path = "/api/v1/auth/login",
+    path = "/api/v1/auth/signin",
     tag = "auth",
-    request_body = LoginResource,
+    request_body = SigninResource,
     responses(
-        (status = 200, description = "Login successful", body = TokenResponse),
+        (status = 200, description = "Sign in successful", body = TokenResponse),
         (status = 401, description = "Invalid credentials"),
         (status = 400, description = "Bad Request")
     )
 )]
-pub async fn login(
+pub async fn signin(
     State(state): State<AppState>,
-    Json(resource): Json<LoginResource>,
+    Json(resource): Json<SigninResource>,
 ) -> impl IntoResponse {
     if let Err(e) = resource.validate() {
         return (StatusCode::BAD_REQUEST, e.to_string()).into_response();
@@ -46,9 +46,9 @@ pub async fn login(
     
     let service = AuthenticationCommandServiceImpl::new(identity_facade, token_service, session_repo);
 
-    let command = LoginCommand::new(resource.email, resource.password);
+    let command = SigninCommand::new(resource.email, resource.password);
     
-    match service.login(command).await {
+    match service.signin(command).await {
         Ok(token) => (StatusCode::OK, Json(TokenResponse { token: token.value().to_string() })).into_response(),
         Err(e) => (StatusCode::UNAUTHORIZED, e.to_string()).into_response(),
     }

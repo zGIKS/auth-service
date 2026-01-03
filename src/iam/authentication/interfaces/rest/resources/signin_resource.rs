@@ -3,7 +3,7 @@ use validator::Validate;
 use utoipa::ToSchema;
 
 #[derive(Deserialize, Validate, ToSchema)]
-pub struct LoginResource {
+pub struct SigninResource {
     #[validate(email)]
     #[schema(example = "string")]
     pub email: String,

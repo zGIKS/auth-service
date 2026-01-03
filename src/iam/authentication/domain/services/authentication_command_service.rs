@@ -15,5 +15,5 @@ pub trait SessionRepository: Send + Sync {
 
 #[async_trait]
 pub trait AuthenticationCommandService: Send + Sync {
-    async fn login(&self, command: crate::iam::authentication::domain::model::commands::login_command::LoginCommand) -> Result<Token, Box<dyn Error + Send + Sync>>;
+    async fn signin(&self, command: crate::iam::authentication::domain::model::commands::signin_command::SigninCommand) -> Result<Token, Box<dyn Error + Send + Sync>>;
 }
