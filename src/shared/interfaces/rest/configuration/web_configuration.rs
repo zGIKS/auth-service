@@ -1,0 +1,13 @@
+use axum::http::{Method, HeaderValue};
+use tower_http::cors::{CorsLayer, Any};
+
+pub struct WebConfiguration;
+
+impl WebConfiguration {
+    pub fn cors() -> CorsLayer {
+        CorsLayer::new()
+            .allow_origin(Any) // En producción especificar orígenes
+            .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::PATCH])
+            .allow_headers(Any)
+    }
+}
