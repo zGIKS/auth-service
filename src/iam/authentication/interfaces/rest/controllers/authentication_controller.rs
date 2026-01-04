@@ -22,7 +22,7 @@ use validator::Validate;
 
 #[utoipa::path(
     post,
-    path = "/api/v1/auth/signin",
+    path = "/api/v1/auth/sign-in",
     tag = "auth",
     request_body = SigninResource,
     responses(

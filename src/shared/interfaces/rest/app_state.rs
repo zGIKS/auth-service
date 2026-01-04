@@ -7,6 +7,8 @@ pub struct AppState {
     pub redis: Client,
     pub jwt_secret: String,
     pub session_duration_seconds: u64,
+    pub verification_expiration_hours: i64,
+    pub password_restore_expiration_hours: i64,
 }
 
 impl axum::extract::FromRef<AppState> for DatabaseConnection {
