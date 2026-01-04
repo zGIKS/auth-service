@@ -8,7 +8,6 @@ use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use mockall::mock;
 use std::error::Error;
 use std::future::Future;
-use std::pin::Pin;
 use auth_service::shared::domain::model::entities::auditable_model::AuditableModel;
 use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 
@@ -17,8 +16,8 @@ mock! {
     pub IdentityRepository {}
     
     impl IdentityRepository for IdentityRepository {
-        fn save(&self, identity: Identity) -> Pin<Box<dyn Future<Output = Result<Identity, Box<dyn Error + Send + Sync>>> + Send>>;
-        fn find_by_email(&self, email: &Email) -> Pin<Box<dyn Future<Output = Result<Option<Identity>, Box<dyn Error + Send + Sync>>> + Send>>;
+        fn save(&self, identity: Identity) -> impl Future<Output = Result<Identity, Box<dyn Error + Send + Sync>>> + Send;
+        fn find_by_email(&self, email: &Email) -> impl Future<Output = Result<Option<Identity>, Box<dyn Error + Send + Sync>>> + Send;
     }
 }
 

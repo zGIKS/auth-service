@@ -1,0 +1,76 @@
+use auth_service::iam::authentication::domain::services::authentication_command_service::{SessionRepository, TokenService};
+use auth_service::iam::authentication::infrastructure::persistence::redis::redis_session_repository::RedisSessionRepository;
+use auth_service::iam::authentication::infrastructure::services::jwt_token_service::JwtTokenService;
+use auth_service::iam::authentication::domain::model::value_objects::token::Token;
+use uuid::Uuid;
+use redis::AsyncCommands;
+use jsonwebtoken::{decode, DecodingKey, Validation};
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct Claims {
+    sub: String,
+    exp: usize,
+}
+
+#[tokio::test]
+async fn test_redis_session_repository_expiration_and_storage() {
+    // This test requires a running Redis instance at redis://127.0.0.1/
+    // If Redis is not available, this test will fail.
+    
+    let client = redis::Client::open("redis://127.0.0.1/").expect("Failed to create Redis client");
+    
+    // Check connection first to skip if not available (optional, but good for CI without services)
+    // For now we assume user has it or wants to know if it fails.
+    
+    let session_duration = 900; // 15 minutes (900 seconds)
+    let repo = RedisSessionRepository::new(client.clone(), session_duration);
+    
+    let user_id = Uuid::new_v4();
+    let token_value = format!("test_token_{}", Uuid::new_v4());
+    let token = Token::new(token_value.clone());
+
+    // 1. Create Session
+    let result = repo.create_session(user_id, &token).await;
+    assert!(result.is_ok(), "Failed to create session in Redis: {:?}", result.err());
+
+    // 2. Verify Storage directly from Redis
+    let mut con = client.get_multiplexed_async_connection().await.expect("Failed to get redis connection");
+    let key = format!("session:{}", user_id);
+    
+    let stored_token: String = con.get(&key).await.expect("Failed to get key from Redis");
+    assert_eq!(stored_token, token_value, "Stored token does not match");
+
+    // 3. Verify Expiration (TTL)
+    let ttl: i64 = con.ttl(&key).await.expect("Failed to get TTL");
+    assert!(ttl > 0 && ttl <= session_duration as i64, "TTL {} is not within expected range (0, {}]", ttl, session_duration);
+}
+
+#[test]
+fn test_jwt_token_service_generation() {
+    let secret = "test_secret_key_1234567890".to_string();
+    let service = JwtTokenService::new(secret.clone());
+    let user_id = Uuid::new_v4();
+
+    // 1. Generate Token
+    let result = service.generate_token(user_id);
+    assert!(result.is_ok());
+    let token = result.unwrap();
+    assert!(!token.value().is_empty());
+
+    // 2. Validate Token (using jsonwebtoken directly to verify)
+    let decoding_key = DecodingKey::from_secret(secret.as_bytes());
+    let validation = Validation::default();
+    
+    let token_data = decode::<Claims>(
+        token.value(),
+        &decoding_key,
+        &validation
+    );
+
+    assert!(token_data.is_ok(), "Failed to decode generated token: {:?}", token_data.err());
+    let claims = token_data.unwrap().claims;
+    assert_eq!(claims.sub, user_id.to_string());
+    // Expiration is handled by generate_token (1 hour), just checking it exists
+    assert!(claims.exp > 0);
+}
