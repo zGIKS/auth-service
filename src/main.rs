@@ -29,6 +29,11 @@ async fn main() {
         .parse()
         .unwrap_or(3600);
 
+    let pending_registration_ttl_seconds: u64 = std::env::var("PENDING_REGISTRATION_TTL_SECONDS")
+        .unwrap_or_else(|_| "900".to_string())
+        .parse()
+        .unwrap_or(900);
+
     // Create table if not exists
     let builder = db.get_database_backend();
     let schema = Schema::new(builder);
@@ -45,11 +50,12 @@ async fn main() {
         redis: redis_client,
         jwt_secret,
         session_duration_seconds,
+        pending_registration_ttl_seconds,
     };
 
     let app = Router::new()
         .route("/api/v1/auth/sign-up", post(iam::identity::interfaces::rest::controllers::identity_controller::register_identity))
-        .route("/api/v1/auth/signin", post(iam::authentication::interfaces::rest::controllers::authentication_controller::signin))
+        .route("/api/v1/auth/sign-in", post(iam::authentication::interfaces::rest::controllers::authentication_controller::signin))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .with_state(state);
 

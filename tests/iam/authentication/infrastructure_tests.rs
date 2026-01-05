@@ -44,6 +44,21 @@ async fn test_redis_session_repository_expiration_and_storage() {
     // 3. Verify Expiration (TTL)
     let ttl: i64 = con.ttl(&key).await.expect("Failed to get TTL");
     assert!(ttl > 0 && ttl <= session_duration as i64, "TTL {} is not within expected range (0, {}]", ttl, session_duration);
+
+    // 4. Verify ACTUAL expiration (New short-lived session)
+    let short_duration = 1;
+    let short_repo = RedisSessionRepository::new(client.clone(), short_duration);
+    let short_user_id = Uuid::new_v4();
+    let short_token = Token::new("short_lived_token".to_string());
+
+    short_repo.create_session(short_user_id, &short_token).await.expect("Failed to create short session");
+    
+    // Wait for expiration
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+    let short_key = format!("session:{}", short_user_id);
+    let exists: bool = con.exists(&short_key).await.expect("Failed to check existence");
+    assert!(!exists, "Session should have expired by Redis TTL");
 }
 
 #[test]

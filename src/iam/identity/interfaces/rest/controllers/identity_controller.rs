@@ -3,7 +3,6 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use sea_orm::DatabaseConnection;
 use validator::Validate;
 
 use crate::iam::identity::application::command_services::identity_command_service_impl::IdentityCommandServiceImpl;
@@ -17,6 +16,8 @@ use crate::iam::identity::interfaces::rest::resources::register_identity_resourc
     RegisterIdentityRequest, RegisterIdentityResponse
 };
 use crate::iam::identity::infrastructure::persistence::postgres::repositories::identity_repository_impl::IdentityRepositoryImpl;
+use crate::iam::identity::infrastructure::persistence::redis::pending_identity_repository_impl::PendingIdentityRepositoryImpl;
+use crate::shared::interfaces::rest::app_state::AppState;
 
 #[utoipa::path(
     post,
@@ -30,7 +31,7 @@ use crate::iam::identity::infrastructure::persistence::postgres::repositories::i
     )
 )]
 pub async fn register_identity(
-    State(db): State<DatabaseConnection>,
+    State(state): State<AppState>,
     Json(payload): Json<RegisterIdentityRequest>,
 ) -> impl IntoResponse {
     if let Err(e) = payload.validate() {
@@ -58,13 +59,16 @@ pub async fn register_identity(
         is_verified,
     );
 
-    let repo = IdentityRepositoryImpl::new(db);
-    let service = IdentityCommandServiceImpl::new(repo);
+    let identity_repo = IdentityRepositoryImpl::new(state.db);
+    let pending_repo = PendingIdentityRepositoryImpl::new(state.redis);
+    let ttl = std::time::Duration::from_secs(state.pending_registration_ttl_seconds);
+    let service = IdentityCommandServiceImpl::new(identity_repo, pending_repo, ttl);
 
     match service.handle(command).await {
-        Ok(_identity) => {
+        Ok((_identity, _token)) => {
+            // TODO: Send event to Messaging BC with the token
             let resource = RegisterIdentityResponse {
-                message: "Identity registered successfully".to_string(),
+                message: "Identity registered successfully. Please check your email to verify your account.".to_string(),
             };
             (StatusCode::CREATED, Json(resource)).into_response()
         },
@@ -72,6 +76,7 @@ pub async fn register_identity(
             DomainError::EmailAlreadyExists => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
             DomainError::InvalidEmailDomain(_) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
             DomainError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+            DomainError::InvalidToken => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
         }
     }
 }
