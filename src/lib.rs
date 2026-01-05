@@ -2,11 +2,13 @@ use utoipa::OpenApi;
 
 pub mod shared;
 pub mod iam;
+pub mod messaging;
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
         iam::identity::interfaces::rest::controllers::identity_controller::register_identity,
+        iam::identity::interfaces::rest::controllers::identity_controller::confirm_registration,
         iam::authentication::interfaces::rest::controllers::authentication_controller::signin
     ),
     components(

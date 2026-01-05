@@ -17,41 +17,54 @@ use crate::iam::identity::domain::{
         identity_repository::IdentityRepository,
         pending_identity_repository::PendingIdentityRepository,
     },
-    services::identity_command_service::IdentityCommandService,
+    services::{
+        identity_command_service::IdentityCommandService,
+        notification_service::NotificationService,
+    },
     error::DomainError,
 };
 use bcrypt::{hash, DEFAULT_COST};
 use std::time::Duration;
 use std::str::FromStr;
 
-pub struct IdentityCommandServiceImpl<R, P>
+pub struct IdentityCommandServiceImpl<R, P, N>
 where
     R: IdentityRepository,
     P: PendingIdentityRepository,
+    N: NotificationService,
 {
     identity_repository: R,
     pending_repository: P,
+    notification_service: N,
     pending_ttl: Duration,
 }
 
-impl<R, P> IdentityCommandServiceImpl<R, P>
+impl<R, P, N> IdentityCommandServiceImpl<R, P, N>
 where
     R: IdentityRepository,
     P: PendingIdentityRepository,
+    N: NotificationService,
 {
-    pub fn new(identity_repository: R, pending_repository: P, pending_ttl: Duration) -> Self {
+    pub fn new(
+        identity_repository: R,
+        pending_repository: P,
+        notification_service: N,
+        pending_ttl: Duration,
+    ) -> Self {
         Self {
             identity_repository,
             pending_repository,
+            notification_service,
             pending_ttl,
         }
     }
 }
 
-impl<R, P> IdentityCommandService for IdentityCommandServiceImpl<R, P>
+impl<R, P, N> IdentityCommandService for IdentityCommandServiceImpl<R, P, N>
 where
     R: IdentityRepository,
     P: PendingIdentityRepository,
+    N: NotificationService,
 {
     async fn handle(
         &self,
@@ -96,6 +109,14 @@ where
         // Save to Redis with configured TTL
         self.pending_repository
             .save(pending, token_hash, self.pending_ttl)
+            .await?;
+
+        // Send Verification Email
+        // Construct the verification link - In a real app, base URL should be from config
+        let verification_link = format!("http://localhost:3000/api/v1/identity/confirm-registration?token={}", token.value());
+        
+        self.notification_service
+            .send_verification_email(command.email.value(), &verification_link)
             .await?;
 
         let identity = Identity::register(command);
