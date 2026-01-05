@@ -36,6 +36,7 @@ mock! {
         async fn save(&self, pending_identity: PendingIdentity, token_hash: String, ttl: Duration) -> Result<(), DomainError>;
         async fn find(&self, token_hash: &str) -> Result<Option<PendingIdentity>, DomainError>;
         async fn delete(&self, token_hash: &str) -> Result<(), DomainError>;
+        async fn find_token_by_email(&self, email: &str) -> Result<Option<String>, DomainError>;
     }
 }
 
@@ -48,6 +49,11 @@ async fn test_register_identity_success() {
     mock_repo
         .expect_find_by_email()
         .returning(|_| Box::pin(async { Ok(None) }));
+
+    mock_pending_repo
+        .expect_find_token_by_email()
+        .times(1)
+        .returning(|_| Ok(None));
 
     mock_pending_repo
         .expect_save()
@@ -101,6 +107,11 @@ async fn test_password_is_hashed_before_saving_pending() {
         .expect_find_by_email()
         .returning(|_| Box::pin(async { Ok(None) }));
 
+    mock_pending_repo
+        .expect_find_token_by_email()
+        .times(1)
+        .returning(|_| Ok(None));
+
     // Verify that the password sent to pending repo save is hashed
     mock_pending_repo
         .expect_save()
@@ -115,6 +126,46 @@ async fn test_password_is_hashed_before_saving_pending() {
     let service = IdentityCommandServiceImpl::new(mock_repo, mock_pending_repo, ttl);
     let email = Email::new("hash_test@gmail.com".to_string()).unwrap();
     let password = Password::new(plain_password.to_string()).unwrap();
+    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email, false);
+
+    let result = service.handle(command).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_register_identity_overwrites_existing_pending() {
+    let mut mock_repo = MockIdentityRepository::new();
+    let mut mock_pending_repo = MockPendingIdentityRepository::new();
+    let ttl = Duration::from_secs(900);
+    
+    let old_token_hash = "old_token_hash_123";
+
+    mock_repo
+        .expect_find_by_email()
+        .returning(|_| Box::pin(async { Ok(None) }));
+
+    // 1. Should check for existing pending
+    mock_pending_repo
+        .expect_find_token_by_email()
+        .times(1)
+        .returning(move |_| Ok(Some(old_token_hash.to_string())));
+
+    // 2. Should delete the old one
+    mock_pending_repo
+        .expect_delete()
+        .with(mockall::predicate::eq(old_token_hash))
+        .times(1)
+        .returning(|_| Ok(()));
+
+    // 3. Should save the new one
+    mock_pending_repo
+        .expect_save()
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+
+    let service = IdentityCommandServiceImpl::new(mock_repo, mock_pending_repo, ttl);
+    let email = Email::new("overwrite@gmail.com".to_string()).unwrap();
+    let password = Password::new("SecurePass123!".to_string()).unwrap();
     let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email, false);
 
     let result = service.handle(command).await;

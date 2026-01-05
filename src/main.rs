@@ -50,8 +50,6 @@ async fn main() {
         redis: redis_client,
         jwt_secret,
         session_duration_seconds,
-        verification_expiration_hours: 24,  // Default 24 hours
-        password_restore_expiration_hours: 1,  // Default 1 hour
         pending_registration_ttl_seconds,
     };
 

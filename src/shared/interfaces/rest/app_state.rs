@@ -4,11 +4,9 @@ use redis::Client;
 #[derive(Clone)]
 pub struct AppState {
     pub db: DatabaseConnection,
-    pub redis: Client,
+    pub redis: redis::Client,
     pub jwt_secret: String,
     pub session_duration_seconds: u64,
-    pub verification_expiration_hours: i64,
-    pub password_restore_expiration_hours: i64,
     pub pending_registration_ttl_seconds: u64,
 }
 

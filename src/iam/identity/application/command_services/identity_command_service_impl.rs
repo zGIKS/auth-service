@@ -76,6 +76,12 @@ where
         command.password = Password::new(hashed.clone())
             .map_err(DomainError::InternalError)?;
 
+        // Check if there is already a pending registration for this email
+        // If so, we invalidate the old one (security/cleanup) to ensure only one active token per email
+        if let Ok(Some(old_token_hash)) = self.pending_repository.find_token_by_email(command.email.value()).await {
+            let _ = self.pending_repository.delete(&old_token_hash).await;
+        }
+
         // Generate Verification Token
         let token = VerificationToken::new();
         let token_hash = token.hash();
