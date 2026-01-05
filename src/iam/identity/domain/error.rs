@@ -8,4 +8,6 @@ pub enum DomainError {
     InvalidEmailDomain(String),
     #[error("Internal error: {0}")]
     InternalError(String),
+    #[error("Invalid or expired token")]
+    InvalidToken,
 }

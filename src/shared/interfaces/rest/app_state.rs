@@ -9,10 +9,17 @@ pub struct AppState {
     pub session_duration_seconds: u64,
     pub verification_expiration_hours: i64,
     pub password_restore_expiration_hours: i64,
+    pub pending_registration_ttl_seconds: u64,
 }
 
 impl axum::extract::FromRef<AppState> for DatabaseConnection {
     fn from_ref(state: &AppState) -> Self {
         state.db.clone()
+    }
+}
+
+impl axum::extract::FromRef<AppState> for Client {
+    fn from_ref(state: &AppState) -> Self {
+        state.redis.clone()
     }
 }

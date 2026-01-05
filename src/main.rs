@@ -29,6 +29,11 @@ async fn main() {
         .parse()
         .unwrap_or(3600);
 
+    let pending_registration_ttl_seconds: u64 = std::env::var("PENDING_REGISTRATION_TTL_SECONDS")
+        .unwrap_or_else(|_| "900".to_string())
+        .parse()
+        .unwrap_or(900);
+
     // Create table if not exists
     let builder = db.get_database_backend();
     let schema = Schema::new(builder);
@@ -47,6 +52,7 @@ async fn main() {
         session_duration_seconds,
         verification_expiration_hours: 24,  // Default 24 hours
         password_restore_expiration_hours: 1,  // Default 1 hour
+        pending_registration_ttl_seconds,
     };
 
     let app = Router::new()
