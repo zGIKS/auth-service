@@ -33,11 +33,10 @@ impl IdentityRepository for IdentityRepositoryImpl {
         let active_model = ActiveModel {
             id: Set(identity.id().0),
             email: Set(identity.email().value().to_string()),
-            password_hash: Set(password_hash_value),
-            provider: Set(identity.provider().to_string()),
-            is_verified: Set(identity.is_verified()),
-            created_at: Set(identity.audit().created_at),
-            updated_at: Set(identity.audit().updated_at),
+            password_hash: Set(identity.password().value().to_string()),
+            auth_provider: Set(identity.provider().to_string()),
+            created_at: Set(identity.audit().created_at.into()),
+            updated_at: Set(identity.audit().updated_at.into()),
         };
 
         IdentityEntity::insert(active_model)
@@ -56,11 +55,11 @@ impl IdentityRepository for IdentityRepositoryImpl {
         match model {
             Some(m) => {
                 let email = Email::new(m.email).map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
-                let provider = AuthProvider::from_str(&m.provider).map_err(|e| Box::<dyn Error + Send + Sync>::from(e))?;
+                let provider = AuthProvider::from_str(&m.auth_provider).map_err(|e| Box::<dyn Error + Send + Sync>::from(e))?;
                 
                 let audit = AuditableModel {
-                    created_at: m.created_at,
-                    updated_at: m.updated_at,
+                    created_at: m.created_at.into(),
+                    updated_at: m.updated_at.into(),
                 };
 
                 Ok(Some(DomainIdentity::new(
@@ -68,7 +67,6 @@ impl IdentityRepository for IdentityRepositoryImpl {
                     email,
                     Password::new(m.password_hash).map_err(|e| Box::<dyn Error + Send + Sync>::from(e))?,
                     provider,
-                    m.is_verified,
                     audit
                 )))
             }

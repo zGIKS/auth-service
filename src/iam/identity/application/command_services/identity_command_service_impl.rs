@@ -162,7 +162,6 @@ where
             email,
             password,
             provider,
-            is_verified: true,
         };
 
         let identity = Identity::register(register_command);

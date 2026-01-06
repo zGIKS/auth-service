@@ -10,7 +10,6 @@ pub struct Identity {
     email: Email,
     password: Password,
     provider: AuthProvider,
-    is_verified: bool,
     audit: AuditableModel,
 }
 
@@ -20,7 +19,6 @@ impl Identity {
         email: Email,
         password: Password,
         provider: AuthProvider,
-        is_verified: bool,
         audit: AuditableModel,
     ) -> Self {
         Self {
@@ -28,7 +26,6 @@ impl Identity {
             email,
             password,
             provider,
-            is_verified,
             audit,
         }
     }
@@ -39,7 +36,6 @@ impl Identity {
             email: command.email,
             password: command.password,
             provider: command.provider,
-            is_verified: command.is_verified,
             audit: AuditableModel::new(),
         }
     }
@@ -58,10 +54,6 @@ impl Identity {
 
     pub fn provider(&self) -> &AuthProvider {
         &self.provider
-    }
-
-    pub fn is_verified(&self) -> bool {
-        self.is_verified
     }
 
     pub fn change_password(&mut self, new_password: Password) {

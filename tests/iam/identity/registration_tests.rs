@@ -103,13 +103,11 @@ async fn test_register_identity_success() {
 
     let email = Email::new("test@gmail.com".to_string()).unwrap(); 
     let password = Password::new("SecurePass123!".to_string()).unwrap();
-    // Default provider is Email, verified is false
-    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email, false);
+    // Default provider is Email
+    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email);
 
     let result: Result<(Identity, String), DomainError> = service.handle(command).await;
     assert!(result.is_ok());
-    let (identity, _token) = result.unwrap();
-    assert_eq!(identity.is_verified(), false); 
 }
 
 #[tokio::test]
@@ -134,7 +132,7 @@ async fn test_register_identity_invalid_mx() {
     let email = Email::new("user@thisdomaindefinitelydoesnotexist12345.com".to_string()).unwrap(); 
     
     let password = Password::new("SecurePass123!".to_string()).unwrap();
-    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email, false);
+    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email);
 
     let result: Result<(Identity, String), DomainError> = service.handle(command).await;
     
@@ -190,7 +188,7 @@ async fn test_password_is_hashed_before_saving_pending() {
     );
     let email = Email::new("hash_test@gmail.com".to_string()).unwrap();
     let password = Password::new(plain_password.to_string()).unwrap();
-    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email, false);
+    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email);
 
     let result: Result<(Identity, String), DomainError> = service.handle(command).await;
     assert!(result.is_ok());
@@ -245,7 +243,7 @@ async fn test_register_identity_overwrites_existing_pending() {
     );
     let email = Email::new("overwrite@gmail.com".to_string()).unwrap();
     let password = Password::new("SecurePass123!".to_string()).unwrap();
-    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email, false);
+    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email);
 
     let result: Result<(Identity, String), DomainError> = service.handle(command).await;
     assert!(result.is_ok());
@@ -269,7 +267,6 @@ async fn test_register_identity_duplicate_email() {
                 email.clone(),
                 Password::new("hashed_password_valid_length".to_string()).unwrap(),
                 AuthProvider::Email,
-                false,
                 AuditableModel::new(),
             );
             Box::pin(async move { Ok(Some(existing_identity)) })
@@ -286,7 +283,7 @@ async fn test_register_identity_duplicate_email() {
 
     let email = Email::new("duplicate@gmail.com".to_string()).unwrap();
     let password = Password::new("SecurePass123!".to_string()).unwrap();
-    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email, false);
+    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email);
 
     let result: Result<(Identity, String), DomainError> = service.handle(command).await;
 
@@ -352,7 +349,6 @@ async fn test_confirm_registration_success() {
     assert!(result.is_ok());
     let identity = result.unwrap();
     assert_eq!(identity.email().value(), "test@gmail.com");
-    assert!(identity.is_verified());
 }
 
 #[tokio::test]

@@ -64,15 +64,13 @@ pub async fn register_identity(
         Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
     };
 
-    // Default values: Provider = Email, is_verified = false
+    // Default values: Provider = Email
     let provider = AuthProvider::Email;
-    let is_verified = false;
 
     let command = RegisterIdentityCommand::new(
         email,
         password,
         provider,
-        is_verified,
     );
 
     let identity_repo = IdentityRepositoryImpl::new(state.db);

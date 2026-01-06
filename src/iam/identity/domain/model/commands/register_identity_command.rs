@@ -7,7 +7,6 @@ pub struct RegisterIdentityCommand {
     pub email: Email,
     pub password: Password,
     pub provider: AuthProvider,
-    pub is_verified: bool,
 }
 
 impl RegisterIdentityCommand {
@@ -15,13 +14,11 @@ impl RegisterIdentityCommand {
         email: Email,
         password: Password,
         provider: AuthProvider,
-        is_verified: bool,
     ) -> Self {
         Self {
             email,
             password,
             provider,
-            is_verified,
         }
     }
 }
