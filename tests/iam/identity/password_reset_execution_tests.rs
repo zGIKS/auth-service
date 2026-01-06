@@ -3,7 +3,7 @@ use super::test_mocks::*;
 use auth_service::iam::identity::application::command_services::identity_command_service_impl::IdentityCommandServiceImpl;
 use auth_service::iam::identity::domain::model::commands::reset_password_command::ResetPasswordCommand;
 use auth_service::iam::identity::domain::model::value_objects::{
-    auth_provider::AuthProvider, email::Email, password::Password,
+    auth_provider::AuthProvider, password::Password,
 };
 use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::services::identity_command_service::IdentityCommandService;

@@ -7,7 +7,6 @@ use auth_service::iam::identity::domain::model::value_objects::{
 };
 use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::services::identity_command_service::IdentityCommandService;
-use auth_service::iam::identity::domain::error::DomainError;
 use auth_service::shared::domain::model::entities::auditable_model::AuditableModel;
 use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 use std::time::Duration;
