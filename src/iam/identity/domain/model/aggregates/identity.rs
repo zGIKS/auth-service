@@ -64,6 +64,11 @@ impl Identity {
         self.is_verified
     }
 
+    pub fn change_password(&mut self, new_password: Password) {
+        self.password = new_password;
+        // Optionally add audit log here
+    }
+
     pub fn audit(&self) -> &AuditableModel {
         &self.audit
     }

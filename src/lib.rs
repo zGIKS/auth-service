@@ -9,12 +9,19 @@ pub mod messaging;
     paths(
         iam::identity::interfaces::rest::controllers::identity_controller::register_identity,
         iam::identity::interfaces::rest::controllers::identity_controller::confirm_registration,
+        iam::identity::interfaces::rest::controllers::identity_controller::request_password_reset,
+        iam::identity::interfaces::rest::controllers::identity_controller::reset_password,
         iam::authentication::interfaces::rest::controllers::authentication_controller::signin
     ),
     components(
         schemas(
             iam::identity::interfaces::rest::resources::register_identity_resource::RegisterIdentityRequest,
             iam::identity::interfaces::rest::resources::register_identity_resource::RegisterIdentityResponse,
+            iam::identity::domain::model::commands::confirm_registration_command::ConfirmRegistrationCommand,
+            iam::identity::interfaces::rest::resources::request_password_reset_resource::RequestPasswordResetRequest,
+            iam::identity::interfaces::rest::resources::request_password_reset_resource::RequestPasswordResetResponse,
+            iam::identity::interfaces::rest::resources::reset_password_resource::ResetPasswordRequest,
+            iam::identity::interfaces::rest::resources::reset_password_resource::ResetPasswordResponse,
             iam::authentication::interfaces::rest::resources::signin_resource::SigninResource,
             iam::authentication::interfaces::rest::resources::signin_resource::TokenResponse
         )

@@ -1,1 +1,2 @@
 pub mod pending_identity_repository_impl;
+pub mod password_reset_token_repository_impl;

@@ -40,4 +40,21 @@ where
             .await
             .map_err(|e| DomainError::InternalError(format!("Failed to send email: {}", e)))
     }
+
+    async fn send_password_reset_email(
+        &self,
+        to: &str,
+        reset_link: &str,
+    ) -> Result<(), DomainError> {
+        let subject = "Password Reset Request".to_string();
+        let body = format!(
+            "You requested a password reset. Click the link below to set a new password:\n{}",
+            reset_link
+        );
+
+        self.messaging_facade
+            .send_email(to.to_string(), subject, body)
+            .await
+            .map_err(|e| DomainError::InternalError(format!("Failed to send email: {}", e)))
+    }
 }

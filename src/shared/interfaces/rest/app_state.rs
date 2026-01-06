@@ -8,6 +8,7 @@ pub struct AppState {
     pub jwt_secret: String,
     pub session_duration_seconds: u64,
     pub pending_registration_ttl_seconds: u64,
+    pub password_reset_ttl_seconds: u64,
 }
 
 impl axum::extract::FromRef<AppState> for DatabaseConnection {
