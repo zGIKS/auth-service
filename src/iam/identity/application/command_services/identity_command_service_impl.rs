@@ -4,6 +4,8 @@ use crate::iam::identity::domain::{
         commands::{
             register_identity_command::RegisterIdentityCommand,
             confirm_registration_command::ConfirmRegistrationCommand,
+            request_password_reset_command::RequestPasswordResetCommand,
+            reset_password_command::ResetPasswordCommand,
         },
         value_objects::{
             pending_identity::PendingIdentity,
@@ -16,42 +18,67 @@ use crate::iam::identity::domain::{
     repositories::{
         identity_repository::IdentityRepository,
         pending_identity_repository::PendingIdentityRepository,
+        password_reset_token_repository::PasswordResetTokenRepository,
     },
-    services::identity_command_service::IdentityCommandService,
+    services::{
+        identity_command_service::IdentityCommandService,
+        notification_service::NotificationService,
+    },
     error::DomainError,
 };
 use bcrypt::{hash, DEFAULT_COST};
 use std::time::Duration;
 use std::str::FromStr;
+use async_trait::async_trait;
 
-pub struct IdentityCommandServiceImpl<R, P>
+pub struct IdentityCommandServiceImpl<R, P, PR, N>
 where
     R: IdentityRepository,
     P: PendingIdentityRepository,
+    PR: PasswordResetTokenRepository,
+    N: NotificationService,
 {
     identity_repository: R,
     pending_repository: P,
+    password_reset_repository: PR,
+    notification_service: N,
     pending_ttl: Duration,
+    password_reset_ttl: Duration,
 }
 
-impl<R, P> IdentityCommandServiceImpl<R, P>
+impl<R, P, PR, N> IdentityCommandServiceImpl<R, P, PR, N>
 where
     R: IdentityRepository,
     P: PendingIdentityRepository,
+    PR: PasswordResetTokenRepository,
+    N: NotificationService,
 {
-    pub fn new(identity_repository: R, pending_repository: P, pending_ttl: Duration) -> Self {
+    pub fn new(
+        identity_repository: R,
+        pending_repository: P,
+        password_reset_repository: PR,
+        notification_service: N,
+        pending_ttl: Duration,
+        password_reset_ttl: Duration,
+    ) -> Self {
         Self {
             identity_repository,
             pending_repository,
+            password_reset_repository,
+            notification_service,
             pending_ttl,
+            password_reset_ttl,
         }
     }
 }
 
-impl<R, P> IdentityCommandService for IdentityCommandServiceImpl<R, P>
+#[async_trait]
+impl<R, P, PR, N> IdentityCommandService for IdentityCommandServiceImpl<R, P, PR, N>
 where
     R: IdentityRepository,
     P: PendingIdentityRepository,
+    PR: PasswordResetTokenRepository,
+    N: NotificationService,
 {
     async fn handle(
         &self,
@@ -98,6 +125,15 @@ where
             .save(pending, token_hash, self.pending_ttl)
             .await?;
 
+        // Send Verification Email
+        // Construct the verification link pointing to the FRONTEND
+        let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+        let verification_link = format!("{}/verify?token={}", frontend_url, token.value());
+        
+        self.notification_service
+            .send_verification_email(command.email.value(), &verification_link)
+            .await?;
+
         let identity = Identity::register(command);
 
         Ok((identity, token.value().to_string()))
@@ -137,5 +173,78 @@ where
         self.pending_repository.delete(&token_hash).await?;
 
         Ok(identity)
+    }
+
+    async fn request_password_reset(
+        &self,
+        command: RequestPasswordResetCommand,
+    ) -> Result<(), DomainError> {
+        // 1. Check if identity exists
+        // We must map the error explicitly because ? expects DomainError but repo returns Box<dyn Error>
+        let identity_opt = self.identity_repository.find_by_email(&command.email).await
+            .map_err(|e| DomainError::InternalError(e.to_string()))?;
+
+        if identity_opt.is_none() {
+            // Security: Don't reveal if email exists. Just return OK.
+            return Ok(());
+        }
+
+        // 2. Generate Reset Token
+        let token = VerificationToken::new(); 
+        let token_hash = token.hash();
+
+        // 3. Save to Redis (short TTL, e.g., 15 mins)
+        self.password_reset_repository
+            .save(command.email.value().to_string(), token_hash, self.password_reset_ttl)
+            .await?;
+
+        // 4. Send Email
+        let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+        let reset_link = format!("{}/reset-password?token={}", frontend_url, token.value());
+
+        self.notification_service
+            .send_password_reset_email(command.email.value(), &reset_link)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn reset_password(
+        &self,
+        command: ResetPasswordCommand,
+    ) -> Result<(), DomainError> {
+        // 1. Find email by token hash
+        let token = VerificationToken::from_string(command.token);
+        let token_hash = token.hash();
+
+        let email_str = self.password_reset_repository.find_email_by_token(&token_hash).await?
+            .ok_or(DomainError::InvalidToken)?;
+
+        let email = Email::new(email_str)
+            .map_err(|e| DomainError::InternalError(format!("Invalid stored email: {}", e)))?;
+
+        // 2. Find Identity
+        let mut identity = self.identity_repository.find_by_email(&email).await
+            .map_err(|e| DomainError::InternalError(e.to_string()))?
+            .ok_or(DomainError::InternalError("Identity not found for valid token".to_string()))?;
+
+        // 3. Hash New Password
+        let hashed_password = hash(command.new_password.value(), DEFAULT_COST)
+            .map_err(|e| DomainError::InternalError(e.to_string()))?;
+        
+        let new_password = Password::new(hashed_password)
+             .map_err(DomainError::InternalError)?;
+
+        // 4. Update Identity
+        identity.change_password(new_password);
+
+        // 5. Save Identity
+        self.identity_repository.save(identity).await
+            .map_err(|e| DomainError::InternalError(e.to_string()))?;
+
+        // 6. Delete Token
+        self.password_reset_repository.delete(&token_hash).await?;
+
+        Ok(())
     }
 }

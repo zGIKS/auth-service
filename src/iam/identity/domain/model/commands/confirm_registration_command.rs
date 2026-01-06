@@ -1,6 +1,8 @@
 use validator::Validate;
+use serde::Deserialize;
+use utoipa::ToSchema;
 
-#[derive(Debug, Validate)]
+#[derive(Debug, Validate, Deserialize, ToSchema)]
 pub struct ConfirmRegistrationCommand {
     #[validate(length(min = 1, message = "Token is required"))]
     pub token: String,

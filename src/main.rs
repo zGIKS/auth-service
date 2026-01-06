@@ -34,6 +34,11 @@ async fn main() {
         .parse()
         .unwrap_or(900);
 
+    let password_reset_ttl_seconds: u64 = std::env::var("PASSWORD_RESET_TTL_SECONDS")
+        .unwrap_or_else(|_| "900".to_string())
+        .parse()
+        .unwrap_or(900);
+
     // Create table if not exists
     let builder = db.get_database_backend();
     let schema = Schema::new(builder);
@@ -51,11 +56,15 @@ async fn main() {
         jwt_secret,
         session_duration_seconds,
         pending_registration_ttl_seconds,
+        password_reset_ttl_seconds,
     };
 
     let app = Router::new()
         .route("/api/v1/auth/sign-up", post(iam::identity::interfaces::rest::controllers::identity_controller::register_identity))
         .route("/api/v1/auth/sign-in", post(iam::authentication::interfaces::rest::controllers::authentication_controller::signin))
+        .route("/api/v1/identity/confirm-registration", axum::routing::post(iam::identity::interfaces::rest::controllers::identity_controller::confirm_registration))
+        .route("/api/v1/identity/forgot-password", axum::routing::post(iam::identity::interfaces::rest::controllers::identity_controller::request_password_reset))
+        .route("/api/v1/identity/reset-password", axum::routing::post(iam::identity::interfaces::rest::controllers::identity_controller::reset_password))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .with_state(state);
 
