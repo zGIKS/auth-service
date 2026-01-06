@@ -33,7 +33,7 @@ impl IdentityRepository for IdentityRepositoryImpl {
         let active_model = ActiveModel {
             id: Set(identity.id().0),
             email: Set(identity.email().value().to_string()),
-            password_hash: Set(identity.password().value().to_string()),
+            password_hash: Set(password_hash_value),
             auth_provider: Set(identity.provider().to_string()),
             created_at: Set(identity.audit().created_at.into()),
             updated_at: Set(identity.audit().updated_at.into()),
