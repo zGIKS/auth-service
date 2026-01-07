@@ -64,7 +64,8 @@ async fn test_redis_session_repository_expiration_and_storage() {
 #[test]
 fn test_jwt_token_service_generation() {
     let secret = "test_secret_key_1234567890".to_string();
-    let service = JwtTokenService::new(secret.clone());
+    let duration_seconds = 3600; // 1 hour for testing
+    let service = JwtTokenService::new(secret.clone(), duration_seconds);
     let user_id = Uuid::new_v4();
 
     // 1. Generate Token

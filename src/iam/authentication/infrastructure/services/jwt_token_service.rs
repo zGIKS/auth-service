@@ -14,18 +14,19 @@ struct Claims {
 
 pub struct JwtTokenService {
     secret: String,
+    duration_seconds: u64,
 }
 
 impl JwtTokenService {
-    pub fn new(secret: String) -> Self {
-        Self { secret }
+    pub fn new(secret: String, duration_seconds: u64) -> Self {
+        Self { secret, duration_seconds }
     }
 }
 
 impl TokenService for JwtTokenService {
     fn generate_token(&self, user_id: Uuid) -> Result<Token, Box<dyn Error + Send + Sync>> {
         let expiration = Utc::now()
-            .checked_add_signed(Duration::hours(1))
+            .checked_add_signed(Duration::seconds(self.duration_seconds as i64))
             .expect("valid timestamp")
             .timestamp();
 

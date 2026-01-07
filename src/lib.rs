@@ -23,7 +23,8 @@ pub mod messaging;
             iam::identity::interfaces::rest::resources::reset_password_resource::ResetPasswordRequest,
             iam::identity::interfaces::rest::resources::reset_password_resource::ResetPasswordResponse,
             iam::authentication::interfaces::rest::resources::signin_resource::SigninResource,
-            iam::authentication::interfaces::rest::resources::signin_resource::TokenResponse
+            iam::authentication::interfaces::rest::resources::signin_resource::TokenResponse,
+            shared::interfaces::rest::error_response::ErrorResponse
         )
     ),
     tags(

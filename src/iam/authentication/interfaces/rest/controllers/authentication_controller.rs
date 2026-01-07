@@ -4,6 +4,7 @@ use axum::{
     response::IntoResponse,
 };
 use crate::shared::interfaces::rest::app_state::AppState;
+use crate::shared::interfaces::rest::error_response::ErrorResponse;
 use crate::iam::authentication::{
     domain::model::commands::signin_command::SigninCommand,
     infrastructure::{
@@ -41,7 +42,7 @@ pub async fn signin(
 
     let identity_repo = IdentityRepositoryImpl::new(state.db.clone());
     let identity_facade = IdentityFacadeImpl::new(identity_repo);
-    let token_service = JwtTokenService::new(state.jwt_secret.clone());
+    let token_service = JwtTokenService::new(state.jwt_secret.clone(), state.session_duration_seconds);
     let session_repo = RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
     
     let service = AuthenticationCommandServiceImpl::new(identity_facade, token_service, session_repo);
@@ -50,6 +51,13 @@ pub async fn signin(
     
     match service.signin(command).await {
         Ok(token) => (StatusCode::OK, Json(TokenResponse { token: token.value().to_string() })).into_response(),
-        Err(e) => (StatusCode::UNAUTHORIZED, e.to_string()).into_response(),
+        Err(e) => {
+            // Log internal error details securely
+            tracing::error!("Authentication error: {}", e);
+            // Return generic error to client without exposing internals
+            ErrorResponse::new("Invalid credentials")
+                .with_code(401)
+                .into_response()
+        }
     }
 }
