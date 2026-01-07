@@ -192,10 +192,19 @@ where
         let token = VerificationToken::new(); 
         let token_hash = token.hash();
 
-        // 3. Save to Redis (short TTL, e.g., 15 mins)
-        self.password_reset_repository
+        // 3. Save to Redis with distributed lock (invalidates previous tokens)
+        // This prevents race conditions and ensures only one valid token exists
+        match self.password_reset_repository
             .save(command.email.value().to_string(), token_hash, self.password_reset_ttl)
-            .await?;
+            .await {
+                Ok(_) => {},
+                Err(e) => {
+                    // If lock acquisition fails, silently return OK for security
+                    // (don't reveal if request is in progress)
+                    tracing::warn!("Failed to save password reset token: {}", e);
+                    return Ok(());
+                }
+            }
 
         // 4. Send Email
         let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());

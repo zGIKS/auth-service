@@ -4,6 +4,7 @@ use axum::{
     response::{IntoResponse, Redirect},
 };
 use validator::Validate;
+use crate::shared::interfaces::rest::error_response::ErrorResponse;
 
 use crate::iam::identity::application::command_services::identity_command_service_impl::IdentityCommandServiceImpl;
 use crate::iam::identity::domain::services::identity_command_service::IdentityCommandService;
@@ -84,7 +85,12 @@ pub async fn register_identity(
     // Messaging / Email Service Construction
     let smtp_sender = match SmtpEmailSender::new() {
         Ok(s) => s,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to initialize email sender: {}", e)).into_response(),
+        Err(e) => {
+            tracing::error!("Failed to initialize email sender: {}", e);
+            return ErrorResponse::service_unavailable()
+                .with_code(503)
+                .into_response();
+        }
     };
     let messaging_service = MessagingCommandServiceImpl::new(smtp_sender);
     let messaging_facade = MessagingFacadeImpl::new(messaging_service);
@@ -102,10 +108,27 @@ pub async fn register_identity(
             (StatusCode::CREATED, Json(resource)).into_response()
         },
         Err(e) => match e {
-            DomainError::EmailAlreadyExists => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
-            DomainError::InvalidEmailDomain(_) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
-            DomainError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-            DomainError::InvalidToken => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+            DomainError::EmailAlreadyExists => {
+                ErrorResponse::new("Email already registered")
+                    .with_code(400)
+                    .into_response()
+            },
+            DomainError::InvalidEmailDomain(_) => {
+                ErrorResponse::new("Invalid email domain")
+                    .with_code(400)
+                    .into_response()
+            },
+            DomainError::InternalError(ref msg) => {
+                tracing::error!("Registration error: {}", msg);
+                ErrorResponse::internal_error()
+                    .with_code(500)
+                    .into_response()
+            },
+            DomainError::InvalidToken => {
+                ErrorResponse::new("Invalid token")
+                    .with_code(400)
+                    .into_response()
+            },
         }
     }
 }
@@ -158,10 +181,11 @@ pub async fn confirm_registration(
     let smtp_sender = match SmtpEmailSender::new() {
         Ok(s) => s,
         Err(e) => {
+            tracing::error!("Failed to initialize email sender: {}", e);
             let error_url = format!(
-                "{}/email-verification-failed?error=internal_error&message={}",
+                "{}/email-verification-failed?error=service_unavailable&message={}",
                 state.frontend_url.as_deref().unwrap_or("http://localhost:3000"),
-                urlencoding::encode(&format!("Email service error: {}", e))
+                urlencoding::encode("Service temporarily unavailable")
             );
             return Redirect::to(&error_url).into_response();
         }
@@ -185,7 +209,10 @@ pub async fn confirm_registration(
         Err(e) => {
             let error_msg = match e {
                 DomainError::InvalidToken => "Invalid or expired verification token",
-                DomainError::InternalError(ref msg) => msg,
+                DomainError::InternalError(ref msg) => {
+                    tracing::error!("Email verification error: {}", msg);
+                    "Verification failed. Please try again or request a new verification email"
+                },
                 _ => "Verification failed",
             };
             let error_url = format!(
@@ -230,7 +257,12 @@ pub async fn request_password_reset(
     
     let smtp_sender = match SmtpEmailSender::new() {
         Ok(s) => s,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to initialize email sender: {}", e)).into_response(),
+        Err(e) => {
+            tracing::error!("Failed to initialize email sender: {}", e);
+            return ErrorResponse::service_unavailable()
+                .with_code(503)
+                .into_response();
+        }
     };
     let messaging_service = MessagingCommandServiceImpl::new(smtp_sender);
     let messaging_facade = MessagingFacadeImpl::new(messaging_service);
@@ -247,7 +279,14 @@ pub async fn request_password_reset(
             };
             (StatusCode::OK, Json(resource)).into_response()
         },
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            tracing::error!("Password reset request error: {}", e);
+            // Return generic success message for security (don't reveal if email exists)
+            let resource = RequestPasswordResetResponse {
+                message: "If an account with that email exists, we sent you a password reset link.".to_string(),
+            };
+            (StatusCode::OK, Json(resource)).into_response()
+        },
     }
 }
 
@@ -283,7 +322,12 @@ pub async fn reset_password(
     
     let smtp_sender = match SmtpEmailSender::new() {
         Ok(s) => s,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to initialize email sender: {}", e)).into_response(),
+        Err(e) => {
+            tracing::error!("Failed to initialize email sender: {}", e);
+            return ErrorResponse::service_unavailable()
+                .with_code(503)
+                .into_response();
+        }
     };
     let messaging_service = MessagingCommandServiceImpl::new(smtp_sender);
     let messaging_facade = MessagingFacadeImpl::new(messaging_service);
@@ -301,8 +345,17 @@ pub async fn reset_password(
             (StatusCode::OK, Json(resource)).into_response()
         },
         Err(e) => match e {
-             DomainError::InvalidToken => (StatusCode::BAD_REQUEST, "Invalid or expired reset token.".to_string()).into_response(),
-             _ => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+             DomainError::InvalidToken => {
+                 ErrorResponse::new("Invalid or expired reset token")
+                     .with_code(400)
+                     .into_response()
+             },
+             _ => {
+                 tracing::error!("Password reset error: {}", e);
+                 ErrorResponse::internal_error()
+                     .with_code(500)
+                     .into_response()
+             }
         }
     }
 }
