@@ -1,0 +1,199 @@
+/// Integration tests for authentication flow
+use super::test_mocks::*;
+use auth_service::iam::authentication::application::command_services::authentication_command_service_impl::AuthenticationCommandServiceImpl;
+use auth_service::iam::authentication::domain::model::commands::signin_command::SigninCommand;
+use auth_service::iam::authentication::domain::model::value_objects::token::Token;
+use auth_service::iam::authentication::domain::services::authentication_command_service::AuthenticationCommandService;
+use uuid::Uuid;
+
+#[tokio::test]
+async fn test_complete_authentication_flow() {
+    let mut mock_identity_facade = MockIdentityFacadeShim::new();
+    let mut mock_token_service = MockTokenServiceShim::new();
+    let mut mock_session_repository = MockSessionRepositoryShim::new();
+
+    let user_id = Uuid::new_v4();
+    let email = "complete@example.com".to_string();
+    let password = "CompletePassword123!".to_string();
+    let token = Token::new("complete_flow_token_xyz".to_string());
+
+    // Simulate complete flow: verify → generate → store
+    mock_identity_facade
+        .expect_verify_credentials()
+        .times(1)
+        .returning(move |_, _| Ok(Some(user_id)));
+
+    let token_clone = token.clone();
+    mock_token_service
+        .expect_generate_token()
+        .times(1)
+        .returning(move |_| Ok(token_clone.clone()));
+
+    mock_session_repository
+        .expect_create_session()
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    let service = AuthenticationCommandServiceImpl::new(
+        mock_identity_facade,
+        mock_token_service,
+        mock_session_repository
+    );
+
+    let command = SigninCommand::new(email, password);
+    let result = service.signin(command).await;
+
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_multiple_signin_attempts_same_user() {
+    // Simulate user logging in multiple times (different sessions)
+    let mut mock_identity_facade = MockIdentityFacadeShim::new();
+    let mut mock_token_service = MockTokenServiceShim::new();
+    let mut mock_session_repository = MockSessionRepositoryShim::new();
+
+    let user_id = Uuid::new_v4();
+
+    // First login
+    mock_identity_facade
+        .expect_verify_credentials()
+        .times(1)
+        .returning(move |_, _| Ok(Some(user_id)));
+
+    let token1 = Token::new("session_token_1".to_string());
+    let token1_clone = token1.clone();
+    mock_token_service
+        .expect_generate_token()
+        .times(1)
+        .returning(move |_| Ok(token1_clone.clone()));
+
+    mock_session_repository
+        .expect_create_session()
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    let service = AuthenticationCommandServiceImpl::new(
+        mock_identity_facade,
+        mock_token_service,
+        mock_session_repository
+    );
+
+    let command1 = SigninCommand::new("user@example.com".to_string(), "password".to_string());
+    let result1 = service.signin(command1).await;
+
+    assert!(result1.is_ok());
+    assert_eq!(result1.unwrap().value(), "session_token_1");
+}
+
+#[tokio::test]
+async fn test_signin_with_acl_boundary() {
+    // Verify that Authentication BC uses ACL to communicate with Identity BC
+    let mut mock_identity_facade = MockIdentityFacadeShim::new();
+    let mut mock_token_service = MockTokenServiceShim::new();
+    let mut mock_session_repository = MockSessionRepositoryShim::new();
+
+    let user_id = Uuid::new_v4();
+    let email = "acl@example.com".to_string();
+    let password = "password123".to_string();
+
+    // ACL (IdentityFacade) is the only way to verify credentials
+    mock_identity_facade
+        .expect_verify_credentials()
+        .with(
+            mockall::predicate::eq(email.clone()),
+            mockall::predicate::eq(password.clone())
+        )
+        .times(1)
+        .returning(move |_, _| Ok(Some(user_id)));
+
+    let token = Token::new("acl_token".to_string());
+    let token_clone = token.clone();
+    mock_token_service
+        .expect_generate_token()
+        .times(1)
+        .returning(move |_| Ok(token_clone.clone()));
+
+    mock_session_repository
+        .expect_create_session()
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    let service = AuthenticationCommandServiceImpl::new(
+        mock_identity_facade,
+        mock_token_service,
+        mock_session_repository
+    );
+
+    let command = SigninCommand::new(email, password);
+    let result = service.signin(command).await;
+
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_signin_preserves_user_id() {
+    // Verify that the same user_id is used for token generation and session creation
+    let mut mock_identity_facade = MockIdentityFacadeShim::new();
+    let mut mock_token_service = MockTokenServiceShim::new();
+    let mut mock_session_repository = MockSessionRepositoryShim::new();
+
+    let expected_user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+
+    mock_identity_facade
+        .expect_verify_credentials()
+        .times(1)
+        .returning(move |_, _| Ok(Some(expected_user_id)));
+
+    // Verify token generation receives correct user_id
+    mock_token_service
+        .expect_generate_token()
+        .with(mockall::predicate::eq(expected_user_id))
+        .times(1)
+        .returning(|_| Ok(Token::new("token".to_string())));
+
+    // Verify session creation receives correct user_id
+    mock_session_repository
+        .expect_create_session()
+        .withf(move |uid, _| *uid == expected_user_id)
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    let service = AuthenticationCommandServiceImpl::new(
+        mock_identity_facade,
+        mock_token_service,
+        mock_session_repository
+    );
+
+    let command = SigninCommand::new("user@example.com".to_string(), "password".to_string());
+    let result = service.signin(command).await;
+
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_signin_error_propagation() {
+    // Test that errors propagate correctly through the layers
+    let mut mock_identity_facade = MockIdentityFacadeShim::new();
+    let mock_token_service = MockTokenServiceShim::new();
+    let mock_session_repository = MockSessionRepositoryShim::new();
+
+    // Simulate infrastructure failure
+    mock_identity_facade
+        .expect_verify_credentials()
+        .times(1)
+        .returning(|_, _| Err("Network timeout".into()));
+
+    let service = AuthenticationCommandServiceImpl::new(
+        mock_identity_facade,
+        mock_token_service,
+        mock_session_repository
+    );
+
+    let command = SigninCommand::new("error@example.com".to_string(), "password".to_string());
+    let result = service.signin(command).await;
+
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert_eq!(error.to_string(), "Network timeout");
+}

@@ -9,6 +9,7 @@ pub struct AppState {
     pub session_duration_seconds: u64,
     pub pending_registration_ttl_seconds: u64,
     pub password_reset_ttl_seconds: u64,
+    pub frontend_url: Option<String>,
 }
 
 impl axum::extract::FromRef<AppState> for DatabaseConnection {

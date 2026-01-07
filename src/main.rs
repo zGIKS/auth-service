@@ -1,4 +1,4 @@
-use axum::{routing::post, Router};
+use axum::{routing::{post, get}, Router};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use dotenvy::dotenv;
@@ -39,6 +39,8 @@ async fn main() {
         .parse()
         .unwrap_or(900);
 
+    let frontend_url = std::env::var("FRONTEND_URL").ok();
+
     // Create table if not exists
     let builder = db.get_database_backend();
     let schema = Schema::new(builder);
@@ -57,14 +59,15 @@ async fn main() {
         session_duration_seconds,
         pending_registration_ttl_seconds,
         password_reset_ttl_seconds,
+        frontend_url,
     };
 
     let app = Router::new()
         .route("/api/v1/auth/sign-up", post(iam::identity::interfaces::rest::controllers::identity_controller::register_identity))
         .route("/api/v1/auth/sign-in", post(iam::authentication::interfaces::rest::controllers::authentication_controller::signin))
-        .route("/api/v1/identity/confirm-registration", axum::routing::post(iam::identity::interfaces::rest::controllers::identity_controller::confirm_registration))
-        .route("/api/v1/identity/forgot-password", axum::routing::post(iam::identity::interfaces::rest::controllers::identity_controller::request_password_reset))
-        .route("/api/v1/identity/reset-password", axum::routing::post(iam::identity::interfaces::rest::controllers::identity_controller::reset_password))
+        .route("/api/v1/identity/confirm-registration", get(iam::identity::interfaces::rest::controllers::identity_controller::confirm_registration))
+        .route("/api/v1/identity/forgot-password", post(iam::identity::interfaces::rest::controllers::identity_controller::request_password_reset))
+        .route("/api/v1/identity/reset-password", post(iam::identity::interfaces::rest::controllers::identity_controller::reset_password))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .with_state(state);
 

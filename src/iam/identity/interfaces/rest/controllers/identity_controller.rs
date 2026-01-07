@@ -1,25 +1,29 @@
 use axum::{
-    extract::{State, Json},
+    extract::{State, Json, Query},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Redirect},
 };
 use validator::Validate;
 
 use crate::iam::identity::application::command_services::identity_command_service_impl::IdentityCommandServiceImpl;
 use crate::iam::identity::domain::services::identity_command_service::IdentityCommandService;
-use crate::iam::identity::domain::model::commands::{
-    register_identity_command::RegisterIdentityCommand,
-    confirm_registration_command::ConfirmRegistrationCommand,
-    request_password_reset_command::RequestPasswordResetCommand,
-    reset_password_command::ResetPasswordCommand,
-};
-use crate::iam::identity::domain::model::value_objects::{
-    email::Email, password::Password, auth_provider::AuthProvider
+use crate::iam::identity::domain::model::{
+    commands::{
+        register_identity_command::RegisterIdentityCommand,
+        confirm_registration_command::ConfirmRegistrationCommand,
+        request_password_reset_command::RequestPasswordResetCommand,
+        reset_password_command::ResetPasswordCommand,
+    },
+    queries::confirm_email_query::ConfirmEmailQuery,
+    value_objects::{
+        email::Email, password::Password, auth_provider::AuthProvider
+    },
 };
 use crate::iam::identity::domain::error::DomainError;
 use crate::iam::identity::interfaces::rest::resources::register_identity_resource::{
     RegisterIdentityRequest, RegisterIdentityResponse
 };
+use crate::iam::identity::interfaces::rest::resources::confirm_email_resource::ConfirmEmailQueryParams;
 use crate::iam::identity::interfaces::rest::resources::request_password_reset_resource::{
     RequestPasswordResetRequest, RequestPasswordResetResponse
 };
@@ -64,15 +68,13 @@ pub async fn register_identity(
         Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
     };
 
-    // Default values: Provider = Email, is_verified = false
+    // Default values: Provider = Email
     let provider = AuthProvider::Email;
-    let is_verified = false;
 
     let command = RegisterIdentityCommand::new(
         email,
         password,
         provider,
-        is_verified,
     );
 
     let identity_repo = IdentityRepositoryImpl::new(state.db);
@@ -109,31 +111,60 @@ pub async fn register_identity(
 }
 
 #[utoipa::path(
-    post,
+    get,
     path = "/api/v1/identity/confirm-registration",
     tag = "identity",
-    request_body = ConfirmRegistrationCommand,
+    params(ConfirmEmailQueryParams),
     responses(
-        (status = 200, description = "Identity verified successfully"),
-        (status = 400, description = "Invalid Token or Request"),
-        (status = 500, description = "Internal Server Error")
+        (status = 302, description = "Redirect to frontend - email verified successfully"),
+        (status = 400, description = "Invalid or expired token - Redirect to frontend with error"),
+        (status = 500, description = "Internal Server Error - Redirect to frontend with error")
     )
 )]
 pub async fn confirm_registration(
     State(state): State<AppState>,
-    Json(payload): Json<ConfirmRegistrationCommand>,
+    Query(params): Query<ConfirmEmailQueryParams>,
 ) -> impl IntoResponse {
-    if let Err(e) = payload.validate() {
-        return (StatusCode::BAD_REQUEST, format!("Validation error: {}", e)).into_response();
+    // Validate query params
+    if let Err(e) = params.validate() {
+        let error_url = format!(
+            "{}/email-verification-failed?error=invalid_token&message={}",
+            state.frontend_url.as_deref().unwrap_or("http://localhost:3000"),
+            urlencoding::encode(&e.to_string())
+        );
+        return Redirect::to(&error_url).into_response();
     }
 
+    // Create domain query
+    let query = match ConfirmEmailQuery::new(params.token.clone()) {
+        Ok(q) => q,
+        Err(e) => {
+            let error_url = format!(
+                "{}/email-verification-failed?error=invalid_token&message={}",
+                state.frontend_url.as_deref().unwrap_or("http://localhost:3000"),
+                urlencoding::encode(&e.to_string())
+            );
+            return Redirect::to(&error_url).into_response();
+        }
+    };
+
+    // Use existing command for backward compatibility
+    let command = ConfirmRegistrationCommand::new(query.token);
+    
     let identity_repo = IdentityRepositoryImpl::new(state.db);
     let pending_repo = PendingIdentityRepositoryImpl::new(state.redis.clone());
     let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis);
 
     let smtp_sender = match SmtpEmailSender::new() {
         Ok(s) => s,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to initialize email sender: {}", e)).into_response(),
+        Err(e) => {
+            let error_url = format!(
+                "{}/email-verification-failed?error=internal_error&message={}",
+                state.frontend_url.as_deref().unwrap_or("http://localhost:3000"),
+                urlencoding::encode(&format!("Email service error: {}", e))
+            );
+            return Redirect::to(&error_url).into_response();
+        }
     };
     let messaging_service = MessagingCommandServiceImpl::new(smtp_sender);
     let messaging_facade = MessagingFacadeImpl::new(messaging_service);
@@ -143,12 +174,26 @@ pub async fn confirm_registration(
     let reset_ttl = std::time::Duration::from_secs(state.password_reset_ttl_seconds);
     let service = IdentityCommandServiceImpl::new(identity_repo, pending_repo, password_reset_repo, email_service, ttl, reset_ttl);
 
-    match service.confirm_registration(payload).await {
-        Ok(_) => (StatusCode::OK, "Account verified successfully. You can now sign in.").into_response(),
-        Err(e) => match e {
-             DomainError::InvalidToken => (StatusCode::BAD_REQUEST, "Invalid or expired verification token.").into_response(),
-             DomainError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg).into_response(),
-             _ => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    match service.confirm_registration(command).await {
+        Ok(_) => {
+            let success_url = format!(
+                "{}/email-verified?success=true",
+                state.frontend_url.as_deref().unwrap_or("http://localhost:3000")
+            );
+            Redirect::to(&success_url).into_response()
+        },
+        Err(e) => {
+            let error_msg = match e {
+                DomainError::InvalidToken => "Invalid or expired verification token",
+                DomainError::InternalError(ref msg) => msg,
+                _ => "Verification failed",
+            };
+            let error_url = format!(
+                "{}/email-verification-failed?error=verification_failed&message={}",
+                state.frontend_url.as_deref().unwrap_or("http://localhost:3000"),
+                urlencoding::encode(error_msg)
+            );
+            Redirect::to(&error_url).into_response()
         }
     }
 }
