@@ -2,7 +2,7 @@
 use super::test_mocks::*;
 use auth_service::iam::authentication::application::command_services::authentication_command_service_impl::AuthenticationCommandServiceImpl;
 use auth_service::iam::authentication::domain::model::commands::signin_command::SigninCommand;
-use auth_service::iam::authentication::domain::model::value_objects::token::Token;
+use auth_service::iam::authentication::domain::model::value_objects::{token::Token, refresh_token::RefreshToken};
 use auth_service::iam::authentication::domain::services::authentication_command_service::AuthenticationCommandService;
 use validator::Validate;
 use uuid::Uuid;
@@ -19,6 +19,7 @@ async fn test_signin_success() {
     let password = "password123".to_string();
     let token_string = "generated_jwt_token_abc123xyz".to_string();
     let token = Token::new(token_string.clone());
+    let refresh_token = RefreshToken::new("refresh_token_123".to_string());
 
     // 1. Identity verifies credentials successfully
     mock_identity_facade
@@ -38,6 +39,13 @@ async fn test_signin_success() {
         .times(1)
         .returning(move |_| Ok(token_clone.clone()));
 
+    // 2b. Token service generates Refresh Token
+    let refresh_token_clone = refresh_token.clone();
+    mock_token_service
+        .expect_generate_refresh_token()
+        .times(1)
+        .returning(move || Ok(refresh_token_clone.clone()));
+
     // 3. Session is created
     let token_clone_2 = token.clone();
     mock_session_repository
@@ -48,6 +56,16 @@ async fn test_signin_success() {
         .times(1)
         .returning(|_, _| Ok(()));
 
+    // 3b. Refresh token is saved
+    let refresh_token_clone_2 = refresh_token.clone();
+    mock_session_repository
+        .expect_save_refresh_token()
+        .withf(move |uid: &Uuid, rt: &RefreshToken, ttl: &u64| {
+            *uid == user_id && rt.value() == refresh_token_clone_2.value() && *ttl == 2592000
+        })
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
@@ -55,11 +73,12 @@ async fn test_signin_success() {
     );
 
     let command = SigninCommand::new(email, password);
-    let result: Result<Token, Box<dyn Error + Send + Sync>> = service.signin(command).await;
+    let result = service.signin(command).await;
 
     assert!(result.is_ok());
-    let returned_token = result.unwrap();
+    let (returned_token, returned_refresh_token) = result.unwrap();
     assert_eq!(returned_token.value(), token_string);
+    assert_eq!(returned_refresh_token.value(), "refresh_token_123");
 }
 
 #[tokio::test]
@@ -90,7 +109,7 @@ async fn test_signin_invalid_credentials() {
     );
 
     let command = SigninCommand::new(email, password);
-    let result: Result<Token, Box<dyn Error + Send + Sync>> = service.signin(command).await;
+    let result = service.signin(command).await;
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().to_string(), "Invalid credentials");
@@ -118,7 +137,7 @@ async fn test_signin_identity_facade_error() {
     );
 
     let command = SigninCommand::new(email, password);
-    let result: Result<Token, Box<dyn Error + Send + Sync>> = service.signin(command).await;
+    let result = service.signin(command).await;
 
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Database"));
@@ -154,7 +173,7 @@ async fn test_signin_token_generation_error() {
     );
 
     let command = SigninCommand::new(email, password);
-    let result: Result<Token, Box<dyn Error + Send + Sync>> = service.signin(command).await;
+    let result = service.signin(command).await;
 
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("JWT"));
@@ -170,6 +189,7 @@ async fn test_signin_session_creation_error() {
     let email = "sessionerror@example.com".to_string();
     let password = "password123".to_string();
     let token = Token::new("valid_token_123".to_string());
+    let refresh_token = RefreshToken::new("valid_refresh_token_123".to_string());
 
     mock_identity_facade
         .expect_verify_credentials()
@@ -181,6 +201,12 @@ async fn test_signin_session_creation_error() {
         .expect_generate_token()
         .times(1)
         .returning(move |_| Ok(token_clone.clone()));
+
+    let refresh_token_clone = refresh_token.clone();
+    mock_token_service
+        .expect_generate_refresh_token()
+        .times(1)
+        .returning(move || Ok(refresh_token_clone.clone()));
 
     // Session creation fails (e.g., Redis down)
     mock_session_repository
@@ -195,7 +221,7 @@ async fn test_signin_session_creation_error() {
     );
 
     let command = SigninCommand::new(email, password);
-    let result: Result<Token, Box<dyn Error + Send + Sync>> = service.signin(command).await;
+    let result = service.signin(command).await;
 
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Redis"));
@@ -224,11 +250,24 @@ async fn test_signin_with_different_user_ids() {
         .times(1)
         .returning(move |_| Ok(token_1_clone.clone()));
 
+    let refresh_token_1 = RefreshToken::new("refresh_token_1".to_string());
+    let refresh_token_1_clone = refresh_token_1.clone();
+    mock_token_service
+        .expect_generate_refresh_token()
+        .times(1)
+        .returning(move || Ok(refresh_token_1_clone.clone()));
+
     mock_session_repository
         .expect_create_session()
         .withf(move |uid, _| *uid == user_id_1)
         .times(1)
         .returning(|_, _| Ok(()));
+        
+    mock_session_repository
+        .expect_save_refresh_token()
+        .withf(move |uid, _, _| *uid == user_id_1)
+        .times(1)
+        .returning(|_, _, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
@@ -240,7 +279,7 @@ async fn test_signin_with_different_user_ids() {
     let result_1 = service.signin(command_1).await;
 
     assert!(result_1.is_ok());
-    assert_eq!(result_1.unwrap().value(), "token_for_user_1");
+    assert_eq!(result_1.unwrap().0.value(), "token_for_user_1");
 }
 
 #[tokio::test]

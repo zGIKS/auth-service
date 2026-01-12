@@ -2,7 +2,7 @@
 use super::test_mocks::*;
 use auth_service::iam::authentication::application::command_services::authentication_command_service_impl::AuthenticationCommandServiceImpl;
 use auth_service::iam::authentication::domain::model::commands::signin_command::SigninCommand;
-use auth_service::iam::authentication::domain::model::value_objects::token::Token;
+use auth_service::iam::authentication::domain::model::value_objects::{token::Token, refresh_token::RefreshToken};
 use auth_service::iam::authentication::domain::services::authentication_command_service::AuthenticationCommandService;
 use uuid::Uuid;
 
@@ -16,6 +16,7 @@ async fn test_complete_authentication_flow() {
     let email = "complete@example.com".to_string();
     let password = "CompletePassword123!".to_string();
     let token = Token::new("complete_flow_token_xyz".to_string());
+    let refresh_token = RefreshToken::new("complete_flow_refresh_token".to_string());
 
     // Simulate complete flow: verify → generate → store
     mock_identity_facade
@@ -29,10 +30,21 @@ async fn test_complete_authentication_flow() {
         .times(1)
         .returning(move |_| Ok(token_clone.clone()));
 
+    let refresh_token_clone = refresh_token.clone();
+    mock_token_service
+        .expect_generate_refresh_token()
+        .times(1)
+        .returning(move || Ok(refresh_token_clone.clone()));
+
     mock_session_repository
         .expect_create_session()
         .times(1)
         .returning(|_, _| Ok(()));
+        
+    mock_session_repository
+        .expect_save_refresh_token()
+        .times(1)
+        .returning(|_, _, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
@@ -44,6 +56,9 @@ async fn test_complete_authentication_flow() {
     let result = service.signin(command).await;
 
     assert!(result.is_ok());
+    let (t, rt) = result.unwrap();
+    assert_eq!(t.value(), "complete_flow_token_xyz");
+    assert_eq!(rt.value(), "complete_flow_refresh_token");
 }
 
 #[tokio::test]
@@ -68,10 +83,22 @@ async fn test_multiple_signin_attempts_same_user() {
         .times(1)
         .returning(move |_| Ok(token1_clone.clone()));
 
+    let refresh_token1 = RefreshToken::new("refresh_token_1".to_string());
+    let refresh_token1_clone = refresh_token1.clone();
+    mock_token_service
+        .expect_generate_refresh_token()
+        .times(1)
+        .returning(move || Ok(refresh_token1_clone.clone()));
+
     mock_session_repository
         .expect_create_session()
         .times(1)
         .returning(|_, _| Ok(()));
+
+    mock_session_repository
+        .expect_save_refresh_token()
+        .times(1)
+        .returning(|_, _, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
@@ -83,7 +110,7 @@ async fn test_multiple_signin_attempts_same_user() {
     let result1 = service.signin(command1).await;
 
     assert!(result1.is_ok());
-    assert_eq!(result1.unwrap().value(), "session_token_1");
+    assert_eq!(result1.unwrap().0.value(), "session_token_1");
 }
 
 #[tokio::test]
@@ -114,10 +141,22 @@ async fn test_signin_with_acl_boundary() {
         .times(1)
         .returning(move |_| Ok(token_clone.clone()));
 
+    let refresh_token = RefreshToken::new("acl_refresh_token".to_string());
+    let refresh_token_clone = refresh_token.clone();
+    mock_token_service
+        .expect_generate_refresh_token()
+        .times(1)
+        .returning(move || Ok(refresh_token_clone.clone()));
+
     mock_session_repository
         .expect_create_session()
         .times(1)
         .returning(|_, _| Ok(()));
+        
+    mock_session_repository
+        .expect_save_refresh_token()
+        .times(1)
+        .returning(|_, _, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
@@ -151,6 +190,11 @@ async fn test_signin_preserves_user_id() {
         .with(mockall::predicate::eq(expected_user_id))
         .times(1)
         .returning(|_| Ok(Token::new("token".to_string())));
+        
+    mock_token_service
+        .expect_generate_refresh_token()
+        .times(1)
+        .returning(|| Ok(RefreshToken::new("refresh_token".to_string())));
 
     // Verify session creation receives correct user_id
     mock_session_repository
@@ -158,6 +202,12 @@ async fn test_signin_preserves_user_id() {
         .withf(move |uid, _| *uid == expected_user_id)
         .times(1)
         .returning(|_, _| Ok(()));
+        
+    mock_session_repository
+        .expect_save_refresh_token()
+        .withf(move |uid, _, _| *uid == expected_user_id)
+        .times(1)
+        .returning(|_, _, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
