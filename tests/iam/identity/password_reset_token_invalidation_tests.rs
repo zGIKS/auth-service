@@ -20,6 +20,7 @@ async fn test_multiple_password_reset_requests_invalidate_previous_tokens() {
     let mock_pending_repo = MockPendingIdentityRepository::new();
     let mut mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mut mock_notification_service = MockNotificationService::new();
+    let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
@@ -62,6 +63,7 @@ async fn test_multiple_password_reset_requests_invalidate_previous_tokens() {
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl,
     );
@@ -109,6 +111,7 @@ async fn test_password_reset_handles_concurrent_requests_safely() {
     let mock_pending_repo = MockPendingIdentityRepository::new();
     let mut mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mut mock_notification_service = MockNotificationService::new();
+    let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
@@ -147,6 +150,7 @@ async fn test_password_reset_handles_concurrent_requests_safely() {
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl,
     );

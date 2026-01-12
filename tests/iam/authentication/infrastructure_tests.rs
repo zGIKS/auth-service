@@ -11,6 +11,7 @@ use serde::Deserialize;
 struct Claims {
     sub: String,
     exp: usize,
+    jti: String,
 }
 
 #[tokio::test]
@@ -27,19 +28,18 @@ async fn test_redis_session_repository_expiration_and_storage() {
     let repo = RedisSessionRepository::new(client.clone(), session_duration);
     
     let user_id = Uuid::new_v4();
-    let token_value = format!("test_token_{}", Uuid::new_v4());
-    let token = Token::new(token_value.clone());
+    let jti_value = format!("jti_{}", Uuid::new_v4());
 
     // 1. Create Session
-    let result = repo.create_session(user_id, &token).await;
+    let result = repo.create_session(user_id, &jti_value).await;
     assert!(result.is_ok(), "Failed to create session in Redis: {:?}", result.err());
 
     // 2. Verify Storage directly from Redis
     let mut con = client.get_multiplexed_async_connection().await.expect("Failed to get redis connection");
     let key = format!("session:{}", user_id);
     
-    let stored_token: String = con.get(&key).await.expect("Failed to get key from Redis");
-    assert_eq!(stored_token, token_value, "Stored token does not match");
+    let stored_jti: String = con.get(&key).await.expect("Failed to get key from Redis");
+    assert_eq!(stored_jti, jti_value, "Stored JTI does not match");
 
     // 3. Verify Expiration (TTL)
     let ttl: i64 = con.ttl(&key).await.expect("Failed to get TTL");
@@ -49,9 +49,9 @@ async fn test_redis_session_repository_expiration_and_storage() {
     let short_duration = 1;
     let short_repo = RedisSessionRepository::new(client.clone(), short_duration);
     let short_user_id = Uuid::new_v4();
-    let short_token = Token::new("short_lived_token".to_string());
+    let short_jti = "short_lived_jti".to_string();
 
-    short_repo.create_session(short_user_id, &short_token).await.expect("Failed to create short session");
+    short_repo.create_session(short_user_id, &short_jti).await.expect("Failed to create short session");
     
     // Wait for expiration
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -71,8 +71,9 @@ fn test_jwt_token_service_generation() {
     // 1. Generate Token
     let result = service.generate_token(user_id);
     assert!(result.is_ok());
-    let token = result.unwrap();
+    let (token, jti) = result.unwrap();
     assert!(!token.value().is_empty());
+    assert!(!jti.is_empty());
 
     // 2. Validate Token (using jsonwebtoken directly to verify)
     let decoding_key = DecodingKey::from_secret(secret.as_bytes());
@@ -87,6 +88,7 @@ fn test_jwt_token_service_generation() {
     assert!(token_data.is_ok(), "Failed to decode generated token: {:?}", token_data.err());
     let claims = token_data.unwrap().claims;
     assert_eq!(claims.sub, user_id.to_string());
+    assert_eq!(claims.jti, jti);
     // Expiration is handled by generate_token (1 hour), just checking it exists
     assert!(claims.exp > 0);
 }

@@ -18,6 +18,7 @@ async fn test_confirm_registration_success() {
     let mut mock_pending_repo = MockPendingIdentityRepository::new();
     let mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mock_notification_service = MockNotificationService::new();
+    let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
@@ -50,6 +51,7 @@ async fn test_confirm_registration_success() {
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl
     );
@@ -71,6 +73,7 @@ async fn test_confirm_registration_invalid_token() {
     let mut mock_pending_repo = MockPendingIdentityRepository::new();
     let mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mock_notification_service = MockNotificationService::new();
+    let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
@@ -87,6 +90,7 @@ async fn test_confirm_registration_invalid_token() {
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl
     );
@@ -109,6 +113,7 @@ async fn test_confirm_registration_with_query_object() {
     let mut mock_pending_repo = MockPendingIdentityRepository::new();
     let mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mock_notification_service = MockNotificationService::new();
+    let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
@@ -141,6 +146,7 @@ async fn test_confirm_registration_with_query_object() {
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl
     );
@@ -165,6 +171,7 @@ async fn test_end_to_end_registration_flow() {
     let mut mock_pending_repo = MockPendingIdentityRepository::new();
     let mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mut mock_notification_service = MockNotificationService::new();
+    let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
@@ -217,6 +224,7 @@ async fn test_end_to_end_registration_flow() {
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl
     );

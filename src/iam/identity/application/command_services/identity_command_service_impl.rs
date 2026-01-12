@@ -23,6 +23,7 @@ use crate::iam::identity::domain::{
     services::{
         identity_command_service::IdentityCommandService,
         notification_service::NotificationService,
+        session_invalidation_service::SessionInvalidationService,
     },
     error::DomainError,
 };
@@ -31,33 +32,37 @@ use std::time::Duration;
 use std::str::FromStr;
 use async_trait::async_trait;
 
-pub struct IdentityCommandServiceImpl<R, P, PR, N>
+pub struct IdentityCommandServiceImpl<R, P, PR, N, S>
 where
     R: IdentityRepository,
     P: PendingIdentityRepository,
     PR: PasswordResetTokenRepository,
     N: NotificationService,
+    S: SessionInvalidationService,
 {
     identity_repository: R,
     pending_repository: P,
     password_reset_repository: PR,
     notification_service: N,
+    session_invalidation_service: S,
     pending_ttl: Duration,
     password_reset_ttl: Duration,
 }
 
-impl<R, P, PR, N> IdentityCommandServiceImpl<R, P, PR, N>
+impl<R, P, PR, N, S> IdentityCommandServiceImpl<R, P, PR, N, S>
 where
     R: IdentityRepository,
     P: PendingIdentityRepository,
     PR: PasswordResetTokenRepository,
     N: NotificationService,
+    S: SessionInvalidationService,
 {
     pub fn new(
         identity_repository: R,
         pending_repository: P,
         password_reset_repository: PR,
         notification_service: N,
+        session_invalidation_service: S,
         pending_ttl: Duration,
         password_reset_ttl: Duration,
     ) -> Self {
@@ -66,6 +71,7 @@ where
             pending_repository,
             password_reset_repository,
             notification_service,
+            session_invalidation_service,
             pending_ttl,
             password_reset_ttl,
         }
@@ -73,12 +79,13 @@ where
 }
 
 #[async_trait]
-impl<R, P, PR, N> IdentityCommandService for IdentityCommandServiceImpl<R, P, PR, N>
+impl<R, P, PR, N, S> IdentityCommandService for IdentityCommandServiceImpl<R, P, PR, N, S>
 where
     R: IdentityRepository,
     P: PendingIdentityRepository,
     PR: PasswordResetTokenRepository,
     N: NotificationService,
+    S: SessionInvalidationService,
 {
     async fn handle(
         &self,
@@ -247,11 +254,16 @@ where
         identity.change_password(new_password);
 
         // 5. Save Identity
-        self.identity_repository.save(identity).await
+        self.identity_repository.save(identity.clone()).await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         // 6. Delete Token
         self.password_reset_repository.delete(&token_hash).await?;
+        
+        // 7. Revoke All Sessions (Security Critical: Invalidate compromised sessions)
+        self.session_invalidation_service.invalidate_all_sessions(identity.id().value())
+            .await
+            .map_err(|e| DomainError::InternalError(format!("Failed to revoke sessions: {}", e)))?;
 
         Ok(())
     }
