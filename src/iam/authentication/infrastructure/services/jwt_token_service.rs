@@ -1,5 +1,5 @@
 use crate::iam::authentication::domain::services::authentication_command_service::TokenService;
-use crate::iam::authentication::domain::model::value_objects::token::Token;
+use crate::iam::authentication::domain::model::value_objects::{token::Token, refresh_token::RefreshToken};
 use jsonwebtoken::{encode, Header, EncodingKey};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -39,5 +39,11 @@ impl TokenService for JwtTokenService {
             .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
 
         Ok(Token::new(token))
+    }
+
+    fn generate_refresh_token(&self) -> Result<RefreshToken, Box<dyn Error + Send + Sync>> {
+        // Simple opaque token using UUID
+        let token = Uuid::new_v4().to_string();
+        Ok(RefreshToken::new(token))
     }
 }

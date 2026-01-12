@@ -15,4 +15,5 @@ pub struct SigninResource {
 #[derive(Serialize, ToSchema)]
 pub struct TokenResponse {
     pub token: String,
+    pub refresh_token: String,
 }

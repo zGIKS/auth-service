@@ -1,5 +1,8 @@
 use crate::iam::authentication::domain::{
-    model::{commands::signin_command::SigninCommand, value_objects::token::Token},
+    model::{
+        commands::{signin_command::SigninCommand, refresh_token_command::RefreshTokenCommand}, 
+        value_objects::{token::Token, refresh_token::RefreshToken}
+    },
     services::authentication_command_service::{AuthenticationCommandService, SessionRepository, TokenService},
 };
 use crate::iam::identity::interfaces::acl::identity_facade::IdentityFacade;
@@ -38,16 +41,41 @@ where
     T: TokenService,
     S: SessionRepository,
 {
-    async fn signin(&self, command: SigninCommand) -> Result<Token, Box<dyn Error + Send + Sync>> {
+    async fn signin(&self, command: SigninCommand) -> Result<(Token, RefreshToken), Box<dyn Error + Send + Sync>> {
         let user_id = self.identity_facade.verify_credentials(command.email, command.password).await?;
         
         match user_id {
             Some(uid) => {
                 let token = self.token_service.generate_token(uid)?;
+                let refresh_token = self.token_service.generate_refresh_token()?;
+                
                 self.session_repository.create_session(uid, &token).await?;
-                Ok(token)
+                // 30 days = 2592000 seconds. TODO: Configurable
+                self.session_repository.save_refresh_token(uid, &refresh_token, 2592000).await?;
+                
+                Ok((token, refresh_token))
             },
             None => Err("Invalid credentials".into()),
         }
+    }
+
+    async fn refresh_token(&self, command: RefreshTokenCommand) -> Result<(Token, RefreshToken), Box<dyn Error + Send + Sync>> {
+        let refresh_token = RefreshToken::new(command.refresh_token);
+        
+        let user_id = self.session_repository.get_user_by_refresh_token(&refresh_token).await?
+            .ok_or("Invalid or expired refresh token")?;
+            
+        // Rotation: Revoke old token
+        self.session_repository.delete_refresh_token(&refresh_token).await?;
+        
+        // Generate new pair
+        let new_token = self.token_service.generate_token(user_id)?;
+        let new_refresh_token = self.token_service.generate_refresh_token()?;
+        
+        // Save
+        self.session_repository.create_session(user_id, &new_token).await?;
+        self.session_repository.save_refresh_token(user_id, &new_refresh_token, 2592000).await?;
+        
+        Ok((new_token, new_refresh_token))
     }
 }
