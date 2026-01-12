@@ -34,6 +34,8 @@ use crate::iam::identity::interfaces::rest::resources::reset_password_resource::
 use crate::iam::identity::infrastructure::persistence::postgres::repositories::identity_repository_impl::IdentityRepositoryImpl;
 use crate::iam::identity::infrastructure::persistence::redis::pending_identity_repository_impl::PendingIdentityRepositoryImpl;
 use crate::iam::identity::infrastructure::persistence::redis::password_reset_token_repository_impl::PasswordResetTokenRepositoryImpl;
+use crate::iam::authentication::infrastructure::persistence::redis::redis_session_repository::RedisSessionRepository;
+use crate::iam::authentication::interfaces::acl::session_invalidation_service_impl::SessionInvalidationServiceImpl;
 use crate::shared::interfaces::rest::app_state::AppState;
 use crate::messaging::infrastructure::services::smtp_email_sender::SmtpEmailSender;
 use crate::messaging::application::command_services::messaging_command_service_impl::MessagingCommandServiceImpl;
@@ -80,7 +82,7 @@ pub async fn register_identity(
 
     let identity_repo = IdentityRepositoryImpl::new(state.db);
     let pending_repo = PendingIdentityRepositoryImpl::new(state.redis.clone());
-    let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis);
+    let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis.clone());
     
     // Messaging / Email Service Construction
     let smtp_sender = match SmtpEmailSender::new() {
@@ -95,10 +97,14 @@ pub async fn register_identity(
     let messaging_service = MessagingCommandServiceImpl::new(smtp_sender);
     let messaging_facade = MessagingFacadeImpl::new(messaging_service);
     let email_service = EmailService::new(messaging_facade);
+    
+    // Session Invalidation Service
+    let session_repo = RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
+    let session_invalidation_service = SessionInvalidationServiceImpl::new(session_repo);
 
     let ttl = std::time::Duration::from_secs(state.pending_registration_ttl_seconds);
     let reset_ttl = std::time::Duration::from_secs(state.password_reset_ttl_seconds);
-    let service = IdentityCommandServiceImpl::new(identity_repo, pending_repo, password_reset_repo, email_service, ttl, reset_ttl);
+    let service = IdentityCommandServiceImpl::new(identity_repo, pending_repo, password_reset_repo, email_service, session_invalidation_service, ttl, reset_ttl);
 
     match service.handle(command).await {
         Ok((_identity, _token)) => {
@@ -176,7 +182,7 @@ pub async fn confirm_registration(
     
     let identity_repo = IdentityRepositoryImpl::new(state.db);
     let pending_repo = PendingIdentityRepositoryImpl::new(state.redis.clone());
-    let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis);
+    let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis.clone());
 
     let smtp_sender = match SmtpEmailSender::new() {
         Ok(s) => s,
@@ -194,9 +200,13 @@ pub async fn confirm_registration(
     let messaging_facade = MessagingFacadeImpl::new(messaging_service);
     let email_service = EmailService::new(messaging_facade);
     
+    // Session Invalidation Service
+    let session_repo = RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
+    let session_invalidation_service = SessionInvalidationServiceImpl::new(session_repo);
+
     let ttl = std::time::Duration::from_secs(state.pending_registration_ttl_seconds);
     let reset_ttl = std::time::Duration::from_secs(state.password_reset_ttl_seconds);
-    let service = IdentityCommandServiceImpl::new(identity_repo, pending_repo, password_reset_repo, email_service, ttl, reset_ttl);
+    let service = IdentityCommandServiceImpl::new(identity_repo, pending_repo, password_reset_repo, email_service, session_invalidation_service, ttl, reset_ttl);
 
     match service.confirm_registration(command).await {
         Ok(_) => {
@@ -253,7 +263,7 @@ pub async fn request_password_reset(
 
     let identity_repo = IdentityRepositoryImpl::new(state.db);
     let pending_repo = PendingIdentityRepositoryImpl::new(state.redis.clone());
-    let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis);
+    let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis.clone());
     
     let smtp_sender = match SmtpEmailSender::new() {
         Ok(s) => s,
@@ -267,10 +277,14 @@ pub async fn request_password_reset(
     let messaging_service = MessagingCommandServiceImpl::new(smtp_sender);
     let messaging_facade = MessagingFacadeImpl::new(messaging_service);
     let email_service = EmailService::new(messaging_facade);
+    
+    // Session Invalidation Service
+    let session_repo = RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
+    let session_invalidation_service = SessionInvalidationServiceImpl::new(session_repo);
 
     let ttl = std::time::Duration::from_secs(state.pending_registration_ttl_seconds);
     let reset_ttl = std::time::Duration::from_secs(state.password_reset_ttl_seconds);
-    let service = IdentityCommandServiceImpl::new(identity_repo, pending_repo, password_reset_repo, email_service, ttl, reset_ttl);
+    let service = IdentityCommandServiceImpl::new(identity_repo, pending_repo, password_reset_repo, email_service, session_invalidation_service, ttl, reset_ttl);
 
     match service.request_password_reset(command).await {
         Ok(_) => {
@@ -318,7 +332,7 @@ pub async fn reset_password(
 
     let identity_repo = IdentityRepositoryImpl::new(state.db);
     let pending_repo = PendingIdentityRepositoryImpl::new(state.redis.clone());
-    let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis);
+    let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis.clone());
     
     let smtp_sender = match SmtpEmailSender::new() {
         Ok(s) => s,
@@ -332,10 +346,14 @@ pub async fn reset_password(
     let messaging_service = MessagingCommandServiceImpl::new(smtp_sender);
     let messaging_facade = MessagingFacadeImpl::new(messaging_service);
     let email_service = EmailService::new(messaging_facade);
+    
+    // Session Invalidation Service
+    let session_repo = RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
+    let session_invalidation_service = SessionInvalidationServiceImpl::new(session_repo);
 
     let ttl = std::time::Duration::from_secs(state.pending_registration_ttl_seconds);
     let reset_ttl = std::time::Duration::from_secs(state.password_reset_ttl_seconds);
-    let service = IdentityCommandServiceImpl::new(identity_repo, pending_repo, password_reset_repo, email_service, ttl, reset_ttl);
+    let service = IdentityCommandServiceImpl::new(identity_repo, pending_repo, password_reset_repo, email_service, session_invalidation_service, ttl, reset_ttl);
 
     match service.reset_password(command).await {
         Ok(_) => {

@@ -16,6 +16,7 @@ async fn test_refresh_token_success() {
     let old_refresh_token = RefreshToken::new(old_refresh_token_str.clone());
     
     let new_token_str = "new_access_token".to_string();
+    let new_jti_str = "new_jti".to_string();
     let new_token = Token::new(new_token_str.clone());
     
     let new_refresh_token_str = "new_refresh_token".to_string();
@@ -37,10 +38,11 @@ async fn test_refresh_token_success() {
 
     // Mock: Generate New Token
     let new_token_clone = new_token.clone();
+    let new_jti_clone = new_jti_str.clone();
     mock_token_service
         .expect_generate_token()
         .with(mockall::predicate::eq(user_id))
-        .returning(move |_| Ok(new_token_clone.clone()));
+        .returning(move |_| Ok((new_token_clone.clone(), new_jti_clone.clone())));
 
     // Mock: Generate New Refresh Token
     let new_refresh_token_clone = new_refresh_token.clone();
@@ -49,10 +51,10 @@ async fn test_refresh_token_success() {
         .returning(move || Ok(new_refresh_token_clone.clone()));
 
     // Mock: Save New Session
-    let new_token_clone_2 = new_token.clone();
+    let new_jti_clone_2 = new_jti_str.clone();
     mock_session_repository
         .expect_create_session()
-        .withf(move |uid: &Uuid, t: &Token| *uid == user_id && t.value() == new_token_clone_2.value())
+        .withf(move |uid: &Uuid, jti: &str| *uid == user_id && jti == new_jti_clone_2)
         .returning(|_, _| Ok(()));
 
     // Mock: Save New Refresh Token

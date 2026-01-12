@@ -46,10 +46,13 @@ where
         
         match user_id {
             Some(uid) => {
-                let token = self.token_service.generate_token(uid)?;
+                // Generate token and get its JTI
+                let (token, jti) = self.token_service.generate_token(uid)?;
                 let refresh_token = self.token_service.generate_refresh_token()?;
                 
-                self.session_repository.create_session(uid, &token).await?;
+                // Pass JTI to create_session
+                self.session_repository.create_session(uid, &jti).await?;
+                
                 // 30 days = 2592000 seconds. TODO: Configurable
                 self.session_repository.save_refresh_token(uid, &refresh_token, 2592000).await?;
                 
@@ -69,11 +72,11 @@ where
         self.session_repository.delete_refresh_token(&refresh_token).await?;
         
         // Generate new pair
-        let new_token = self.token_service.generate_token(user_id)?;
+        let (new_token, new_jti) = self.token_service.generate_token(user_id)?;
         let new_refresh_token = self.token_service.generate_refresh_token()?;
         
-        // Save
-        self.session_repository.create_session(user_id, &new_token).await?;
+        // Save using JTI
+        self.session_repository.create_session(user_id, &new_jti).await?;
         self.session_repository.save_refresh_token(user_id, &new_refresh_token, 2592000).await?;
         
         Ok((new_token, new_refresh_token))

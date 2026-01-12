@@ -9,12 +9,14 @@ use auth_service::iam::identity::domain::repositories::{
     password_reset_token_repository::PasswordResetTokenRepository,
 };
 use auth_service::iam::identity::domain::services::notification_service::NotificationService;
+use auth_service::iam::identity::domain::services::session_invalidation_service::SessionInvalidationService;
 use auth_service::iam::identity::domain::error::DomainError;
 use mockall::mock;
 use std::error::Error;
 use std::future::Future;
 use std::time::Duration;
 use async_trait::async_trait;
+use uuid::Uuid;
 
 mock! {
     pub IdentityRepository {}
@@ -55,5 +57,14 @@ mock! {
     impl NotificationService for NotificationService {
         async fn send_verification_email(&self, to: &str, token: &str) -> Result<(), DomainError>;
         async fn send_password_reset_email(&self, to: &str, reset_link: &str) -> Result<(), DomainError>;
+    }
+}
+
+mock! {
+    pub SessionInvalidationService {}
+
+    #[async_trait]
+    impl SessionInvalidationService for SessionInvalidationService {
+        async fn invalidate_all_sessions(&self, user_id: Uuid) -> Result<(), Box<dyn Error + Send + Sync>>;
     }
 }

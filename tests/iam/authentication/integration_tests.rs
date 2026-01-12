@@ -16,6 +16,7 @@ async fn test_complete_authentication_flow() {
     let email = "complete@example.com".to_string();
     let password = "CompletePassword123!".to_string();
     let token = Token::new("complete_flow_token_xyz".to_string());
+    let jti = "jti-complete".to_string();
     let refresh_token = RefreshToken::new("complete_flow_refresh_token".to_string());
 
     // Simulate complete flow: verify → generate → store
@@ -25,10 +26,11 @@ async fn test_complete_authentication_flow() {
         .returning(move |_, _| Ok(Some(user_id)));
 
     let token_clone = token.clone();
+    let jti_clone = jti.clone();
     mock_token_service
         .expect_generate_token()
         .times(1)
-        .returning(move |_| Ok(token_clone.clone()));
+        .returning(move |_| Ok((token_clone.clone(), jti_clone.clone())));
 
     let refresh_token_clone = refresh_token.clone();
     mock_token_service
@@ -77,11 +79,13 @@ async fn test_multiple_signin_attempts_same_user() {
         .returning(move |_, _| Ok(Some(user_id)));
 
     let token1 = Token::new("session_token_1".to_string());
+    let jti1 = "jti-1".to_string();
     let token1_clone = token1.clone();
+    let jti1_clone = jti1.clone();
     mock_token_service
         .expect_generate_token()
         .times(1)
-        .returning(move |_| Ok(token1_clone.clone()));
+        .returning(move |_| Ok((token1_clone.clone(), jti1_clone.clone())));
 
     let refresh_token1 = RefreshToken::new("refresh_token_1".to_string());
     let refresh_token1_clone = refresh_token1.clone();
@@ -135,11 +139,13 @@ async fn test_signin_with_acl_boundary() {
         .returning(move |_, _| Ok(Some(user_id)));
 
     let token = Token::new("acl_token".to_string());
+    let jti = "jti-acl".to_string();
     let token_clone = token.clone();
+    let jti_clone = jti.clone();
     mock_token_service
         .expect_generate_token()
         .times(1)
-        .returning(move |_| Ok(token_clone.clone()));
+        .returning(move |_| Ok((token_clone.clone(), jti_clone.clone())));
 
     let refresh_token = RefreshToken::new("acl_refresh_token".to_string());
     let refresh_token_clone = refresh_token.clone();
@@ -189,7 +195,7 @@ async fn test_signin_preserves_user_id() {
         .expect_generate_token()
         .with(mockall::predicate::eq(expected_user_id))
         .times(1)
-        .returning(|_| Ok(Token::new("token".to_string())));
+        .returning(|_| Ok((Token::new("token".to_string()), "jti".to_string())));
         
     mock_token_service
         .expect_generate_refresh_token()

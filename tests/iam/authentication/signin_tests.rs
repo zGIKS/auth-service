@@ -16,6 +16,7 @@ async fn test_signin_success() {
     let email = "test@example.com".to_string();
     let password = "password123".to_string();
     let token_string = "generated_token_123".to_string();
+    let jti_string = "unique-jti-123".to_string();
     let token = Token::new(token_string.clone());
     let refresh_token_string = "generated_refresh_token_123".to_string();
     let refresh_token = RefreshToken::new(refresh_token_string.clone());
@@ -28,10 +29,11 @@ async fn test_signin_success() {
 
     // Setup TokenService mock
     let token_clone = token.clone();
+    let jti_clone = jti_string.clone();
     mock_token_service
         .expect_generate_token()
         .with(mockall::predicate::eq(user_id))
-        .returning(move |_| Ok(token_clone.clone()));
+        .returning(move |_| Ok((token_clone.clone(), jti_clone.clone())));
     
     let refresh_token_clone = refresh_token.clone();
     mock_token_service
@@ -39,10 +41,10 @@ async fn test_signin_success() {
         .returning(move || Ok(refresh_token_clone.clone()));
 
     // Setup SessionRepository mock
-    let token_clone_2 = token.clone();
+    let jti_clone_2 = jti_string.clone();
     mock_session_repository
         .expect_create_session()
-        .withf(move |uid: &Uuid, t: &Token| *uid == user_id && t.value() == token_clone_2.value())
+        .withf(move |uid: &Uuid, jti: &str| *uid == user_id && jti == jti_clone_2)
         .returning(|_, _| Ok(()));
         
     let refresh_token_clone_2 = refresh_token.clone();

@@ -11,6 +11,7 @@ use auth_service::iam::identity::domain::error::DomainError;
 use auth_service::shared::domain::model::entities::auditable_model::AuditableModel;
 use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 use std::time::Duration;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn test_reset_password_success() {
@@ -18,11 +19,13 @@ async fn test_reset_password_success() {
     let mock_pending_repo = MockPendingIdentityRepository::new();
     let mut mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mock_notification_service = MockNotificationService::new();
+    let mut mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
     let test_token = "valid-reset-token-12345678901234567890";
     let test_email = "reset@gmail.com";
+    let identity_id = IdentityId::new();
 
     // 1. Token exists and returns email
     mock_password_reset_repo
@@ -31,12 +34,13 @@ async fn test_reset_password_success() {
         .returning(move |_| Ok(Some(test_email.to_string())));
 
     // 2. Find user by email
+    let identity_id_clone = identity_id.clone();
     mock_repo
         .expect_find_by_email()
         .times(1)
-        .returning(|email| {
+        .returning(move |email| {
             let identity = Identity::new(
-                IdentityId::new(),
+                identity_id_clone.clone(),
                 email.clone(),
                 Password::new("old_hashed_password_valid_length".to_string()).unwrap(),
                 AuthProvider::Email,
@@ -61,11 +65,19 @@ async fn test_reset_password_success() {
         .times(1)
         .returning(|_| Ok(()));
 
+    // 5. Invalidate sessions
+    mock_session_invalidation_service
+        .expect_invalidate_all_sessions()
+        .times(1)
+        .with(mockall::predicate::eq(identity_id.value()))
+        .returning(|_| Ok(()));
+
     let service = IdentityCommandServiceImpl::new(
         mock_repo,
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl,
     );
@@ -83,6 +95,7 @@ async fn test_reset_password_invalid_token() {
     let mock_pending_repo = MockPendingIdentityRepository::new();
     let mut mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mock_notification_service = MockNotificationService::new();
+    let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
@@ -99,6 +112,7 @@ async fn test_reset_password_invalid_token() {
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl,
     );
@@ -119,6 +133,7 @@ async fn test_reset_password_hashes_new_password() {
     let mock_pending_repo = MockPendingIdentityRepository::new();
     let mut mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mock_notification_service = MockNotificationService::new();
+    let mut mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
@@ -161,11 +176,18 @@ async fn test_reset_password_hashes_new_password() {
         .times(1)
         .returning(|_| Ok(()));
 
+    // Session invalidation should be called
+    mock_session_invalidation_service
+        .expect_invalidate_all_sessions()
+        .times(1)
+        .returning(|_| Ok(()));
+
     let service = IdentityCommandServiceImpl::new(
         mock_repo,
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl,
     );
@@ -183,6 +205,7 @@ async fn test_reset_password_deletes_token_after_use() {
     let mock_pending_repo = MockPendingIdentityRepository::new();
     let mut mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mock_notification_service = MockNotificationService::new();
+    let mut mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
@@ -224,11 +247,18 @@ async fn test_reset_password_deletes_token_after_use() {
         })
         .returning(|_| Ok(()));
 
+    // Session invalidation should be called
+    mock_session_invalidation_service
+        .expect_invalidate_all_sessions()
+        .times(1)
+        .returning(|_| Ok(()));
+
     let service = IdentityCommandServiceImpl::new(
         mock_repo,
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl,
     );
@@ -246,6 +276,7 @@ async fn test_reset_password_user_not_found_for_valid_token() {
     let mock_pending_repo = MockPendingIdentityRepository::new();
     let mut mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mock_notification_service = MockNotificationService::new();
+    let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
@@ -269,6 +300,7 @@ async fn test_reset_password_user_not_found_for_valid_token() {
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl,
     );
@@ -301,6 +333,7 @@ async fn test_reset_password_accepts_strong_password() {
     let mock_pending_repo = MockPendingIdentityRepository::new();
     let mut mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mock_notification_service = MockNotificationService::new();
+    let mut mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
 
@@ -336,11 +369,18 @@ async fn test_reset_password_accepts_strong_password() {
         .times(1)
         .returning(|_| Ok(()));
 
+    // Session invalidation should be called
+    mock_session_invalidation_service
+        .expect_invalidate_all_sessions()
+        .times(1)
+        .returning(|_| Ok(()));
+
     let service = IdentityCommandServiceImpl::new(
         mock_repo,
         mock_pending_repo,
         mock_password_reset_repo,
         mock_notification_service,
+        mock_session_invalidation_service,
         ttl,
         reset_ttl,
     );
