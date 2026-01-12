@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
-use validator::Validate;
 use utoipa::ToSchema;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Deserialize, Validate, ToSchema)]
 pub struct VerifyTokenResource {

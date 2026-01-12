@@ -1,3 +1,5 @@
+use async_trait::async_trait;
+use auth_service::iam::identity::domain::error::DomainError;
 /// Shared mocks for identity tests
 use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::model::value_objects::{
@@ -5,22 +7,20 @@ use auth_service::iam::identity::domain::model::value_objects::{
 };
 use auth_service::iam::identity::domain::repositories::{
     identity_repository::IdentityRepository,
-    pending_identity_repository::PendingIdentityRepository,
     password_reset_token_repository::PasswordResetTokenRepository,
+    pending_identity_repository::PendingIdentityRepository,
 };
 use auth_service::iam::identity::domain::services::notification_service::NotificationService;
 use auth_service::iam::identity::domain::services::session_invalidation_service::SessionInvalidationService;
-use auth_service::iam::identity::domain::error::DomainError;
 use mockall::mock;
 use std::error::Error;
 use std::future::Future;
 use std::time::Duration;
-use async_trait::async_trait;
 use uuid::Uuid;
 
 mock! {
     pub IdentityRepository {}
-    
+
     impl IdentityRepository for IdentityRepository {
         fn save(&self, identity: Identity) -> impl Future<Output = Result<Identity, Box<dyn Error + Send + Sync>>> + Send;
         fn find_by_email(&self, email: &Email) -> impl Future<Output = Result<Option<Identity>, Box<dyn Error + Send + Sync>>> + Send;

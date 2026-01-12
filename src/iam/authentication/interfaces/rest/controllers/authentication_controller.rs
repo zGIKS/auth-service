@@ -1,30 +1,34 @@
-use axum::{
-    extract::{State, Json},
-    http::StatusCode,
-    response::IntoResponse,
-};
-use crate::shared::interfaces::rest::app_state::AppState;
-use crate::shared::interfaces::rest::error_response::ErrorResponse;
 use crate::iam::authentication::{
-    domain::model::commands::{signin_command::SigninCommand, refresh_token_command::RefreshTokenCommand},
-    infrastructure::{
-        services::jwt_token_service::JwtTokenService,
-        persistence::redis::redis_session_repository::RedisSessionRepository,
-    },
     application::{
         command_services::authentication_command_service_impl::AuthenticationCommandServiceImpl,
         query_services::authentication_query_service_impl::AuthenticationQueryServiceImpl,
     },
-    domain::services::authentication_command_service::{AuthenticationCommandService, AuthenticationQueryService},
+    domain::model::commands::{
+        refresh_token_command::RefreshTokenCommand, signin_command::SigninCommand,
+    },
+    domain::services::authentication_command_service::{
+        AuthenticationCommandService, AuthenticationQueryService,
+    },
+    infrastructure::{
+        persistence::redis::redis_session_repository::RedisSessionRepository,
+        services::jwt_token_service::JwtTokenService,
+    },
     interfaces::rest::resources::{
-        signin_resource::{SigninResource, TokenResponse}, 
         refresh_token_resource::RefreshTokenResource,
+        signin_resource::{SigninResource, TokenResponse},
         verify_token_resource::{VerifyTokenResource, VerifyTokenResponse},
     },
 };
 use crate::iam::identity::{
-    infrastructure::persistence::postgres::repositories::identity_repository_impl::IdentityRepositoryImpl,
     application::acl::identity_facade_impl::IdentityFacadeImpl,
+    infrastructure::persistence::postgres::repositories::identity_repository_impl::IdentityRepositoryImpl,
+};
+use crate::shared::interfaces::rest::app_state::AppState;
+use crate::shared::interfaces::rest::error_response::ErrorResponse;
+use axum::{
+    extract::{Json, State},
+    http::StatusCode,
+    response::IntoResponse,
 };
 use validator::Validate;
 
@@ -49,18 +53,25 @@ pub async fn signin(
 
     let identity_repo = IdentityRepositoryImpl::new(state.db.clone());
     let identity_facade = IdentityFacadeImpl::new(identity_repo);
-    let token_service = JwtTokenService::new(state.jwt_secret.clone(), state.session_duration_seconds);
-    let session_repo = RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
-    
-    let service = AuthenticationCommandServiceImpl::new(identity_facade, token_service, session_repo);
+    let token_service =
+        JwtTokenService::new(state.jwt_secret.clone(), state.session_duration_seconds);
+    let session_repo =
+        RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
+
+    let service =
+        AuthenticationCommandServiceImpl::new(identity_facade, token_service, session_repo);
 
     let command = SigninCommand::new(resource.email, resource.password);
-    
+
     match service.signin(command).await {
-        Ok((token, refresh_token)) => (StatusCode::OK, Json(TokenResponse { 
-            token: token.value().to_string(),
-            refresh_token: refresh_token.value().to_string()
-        })).into_response(),
+        Ok((token, refresh_token)) => (
+            StatusCode::OK,
+            Json(TokenResponse {
+                token: token.value().to_string(),
+                refresh_token: refresh_token.value().to_string(),
+            }),
+        )
+            .into_response(),
         Err(e) => {
             tracing::error!("Authentication error: {}", e);
             ErrorResponse::new("Invalid credentials")
@@ -91,18 +102,25 @@ pub async fn refresh_token(
 
     let identity_repo = IdentityRepositoryImpl::new(state.db.clone());
     let identity_facade = IdentityFacadeImpl::new(identity_repo);
-    let token_service = JwtTokenService::new(state.jwt_secret.clone(), state.session_duration_seconds);
-    let session_repo = RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
-    
-    let service = AuthenticationCommandServiceImpl::new(identity_facade, token_service, session_repo);
+    let token_service =
+        JwtTokenService::new(state.jwt_secret.clone(), state.session_duration_seconds);
+    let session_repo =
+        RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
+
+    let service =
+        AuthenticationCommandServiceImpl::new(identity_facade, token_service, session_repo);
 
     let command = RefreshTokenCommand::new(resource.refresh_token);
-    
+
     match service.refresh_token(command).await {
-        Ok((token, refresh_token)) => (StatusCode::OK, Json(TokenResponse { 
-            token: token.value().to_string(),
-            refresh_token: refresh_token.value().to_string()
-        })).into_response(),
+        Ok((token, refresh_token)) => (
+            StatusCode::OK,
+            Json(TokenResponse {
+                token: token.value().to_string(),
+                refresh_token: refresh_token.value().to_string(),
+            }),
+        )
+            .into_response(),
         Err(e) => {
             tracing::error!("Refresh token error: {}", e);
             ErrorResponse::new("Invalid or expired refresh token")
@@ -130,25 +148,35 @@ pub async fn verify_token(
         return (StatusCode::BAD_REQUEST, e.to_string()).into_response();
     }
 
-    let token_service = JwtTokenService::new(state.jwt_secret.clone(), state.session_duration_seconds);
-    let session_repo = RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
-    
+    let token_service =
+        JwtTokenService::new(state.jwt_secret.clone(), state.session_duration_seconds);
+    let session_repo =
+        RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
+
     let service = AuthenticationQueryServiceImpl::new(token_service, session_repo);
 
     match service.verify_token(&resource.token).await {
-        Ok(claims) => (StatusCode::OK, Json(VerifyTokenResponse {
-            is_valid: true,
-            sub: claims.sub,
-            error: None,
-        })).into_response(),
+        Ok(claims) => (
+            StatusCode::OK,
+            Json(VerifyTokenResponse {
+                is_valid: true,
+                sub: claims.sub,
+                error: None,
+            }),
+        )
+            .into_response(),
         Err(e) => {
             // We return 200 OK with is_valid=false for business logic validation failures (like revoked)
             // ensuring the client can distinguish between "system error" and "invalid token"
-            (StatusCode::OK, Json(VerifyTokenResponse {
-                is_valid: false,
-                sub: uuid::Uuid::nil(), // Placeholder
-                error: Some(e.to_string()),
-            })).into_response()
+            (
+                StatusCode::OK,
+                Json(VerifyTokenResponse {
+                    is_valid: false,
+                    sub: uuid::Uuid::nil(), // Placeholder
+                    error: Some(e.to_string()),
+                }),
+            )
+                .into_response()
         }
     }
 }

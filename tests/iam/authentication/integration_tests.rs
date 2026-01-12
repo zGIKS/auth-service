@@ -42,7 +42,7 @@ async fn test_complete_authentication_flow() {
         .expect_create_session()
         .times(1)
         .returning(|_, _| Ok(()));
-        
+
     mock_session_repository
         .expect_save_refresh_token()
         .times(1)
@@ -51,7 +51,7 @@ async fn test_complete_authentication_flow() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = SigninCommand::new(email, password);
@@ -107,7 +107,7 @@ async fn test_multiple_signin_attempts_same_user() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command1 = SigninCommand::new("user@example.com".to_string(), "password".to_string());
@@ -133,7 +133,7 @@ async fn test_signin_with_acl_boundary() {
         .expect_verify_credentials()
         .with(
             mockall::predicate::eq(email.clone()),
-            mockall::predicate::eq(password.clone())
+            mockall::predicate::eq(password.clone()),
         )
         .times(1)
         .returning(move |_, _| Ok(Some(user_id)));
@@ -158,7 +158,7 @@ async fn test_signin_with_acl_boundary() {
         .expect_create_session()
         .times(1)
         .returning(|_, _| Ok(()));
-        
+
     mock_session_repository
         .expect_save_refresh_token()
         .times(1)
@@ -167,7 +167,7 @@ async fn test_signin_with_acl_boundary() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = SigninCommand::new(email, password);
@@ -196,7 +196,7 @@ async fn test_signin_preserves_user_id() {
         .with(mockall::predicate::eq(expected_user_id))
         .times(1)
         .returning(|_| Ok((Token::new("token".to_string()), "jti".to_string())));
-        
+
     mock_token_service
         .expect_generate_refresh_token()
         .times(1)
@@ -208,7 +208,7 @@ async fn test_signin_preserves_user_id() {
         .withf(move |uid, _| *uid == expected_user_id)
         .times(1)
         .returning(|_, _| Ok(()));
-        
+
     mock_session_repository
         .expect_save_refresh_token()
         .withf(move |uid, _, _| *uid == expected_user_id)
@@ -218,7 +218,7 @@ async fn test_signin_preserves_user_id() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = SigninCommand::new("user@example.com".to_string(), "password".to_string());
@@ -243,7 +243,7 @@ async fn test_signin_error_propagation() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = SigninCommand::new("error@example.com".to_string(), "password".to_string());

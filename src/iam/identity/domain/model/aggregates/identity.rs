@@ -1,7 +1,7 @@
+use crate::iam::identity::domain::model::commands::register_identity_command::RegisterIdentityCommand;
 use crate::iam::identity::domain::model::value_objects::{
     auth_provider::AuthProvider, email::Email, identity_id::IdentityId, password::Password,
 };
-use crate::iam::identity::domain::model::commands::register_identity_command::RegisterIdentityCommand;
 use crate::shared::domain::model::entities::auditable_model::AuditableModel;
 
 #[derive(Debug, Clone)]

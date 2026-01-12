@@ -1,8 +1,8 @@
 use utoipa::OpenApi;
 
-pub mod shared;
 pub mod iam;
 pub mod messaging;
+pub mod shared;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -13,7 +13,9 @@ pub mod messaging;
         iam::identity::interfaces::rest::controllers::identity_controller::reset_password,
         iam::authentication::interfaces::rest::controllers::authentication_controller::signin,
         iam::authentication::interfaces::rest::controllers::authentication_controller::refresh_token,
-        iam::authentication::interfaces::rest::controllers::authentication_controller::verify_token
+        iam::authentication::interfaces::rest::controllers::authentication_controller::verify_token,
+        iam::federation::interfaces::rest::controllers::google_controller::redirect_to_google,
+        iam::federation::interfaces::rest::controllers::google_controller::google_callback
     ),
     components(
         schemas(
@@ -29,6 +31,7 @@ pub mod messaging;
             iam::authentication::interfaces::rest::resources::refresh_token_resource::RefreshTokenResource,
             iam::authentication::interfaces::rest::resources::verify_token_resource::VerifyTokenResource,
             iam::authentication::interfaces::rest::resources::verify_token_resource::VerifyTokenResponse,
+            iam::federation::interfaces::rest::resources::google_callback_query::GoogleCallbackQuery,
             shared::interfaces::rest::error_response::ErrorResponse
         )
     ),

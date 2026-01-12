@@ -1,32 +1,33 @@
+use super::test_mocks::*;
+use async_trait::async_trait;
 use auth_service::iam::identity::application::command_services::identity_command_service_impl::IdentityCommandServiceImpl;
-use auth_service::iam::identity::domain::model::commands::register_identity_command::RegisterIdentityCommand;
+use auth_service::iam::identity::domain::error::DomainError;
+use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::model::commands::confirm_registration_command::ConfirmRegistrationCommand;
+use auth_service::iam::identity::domain::model::commands::register_identity_command::RegisterIdentityCommand;
 use auth_service::iam::identity::domain::model::queries::confirm_email_query::ConfirmEmailQuery;
+use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 use auth_service::iam::identity::domain::model::value_objects::{
-    auth_provider::AuthProvider, email::Email, password::Password, pending_identity::PendingIdentity,
+    auth_provider::AuthProvider, email::Email, password::Password,
+    pending_identity::PendingIdentity,
 };
 use auth_service::iam::identity::domain::repositories::{
     identity_repository::IdentityRepository,
-    pending_identity_repository::PendingIdentityRepository,
     password_reset_token_repository::PasswordResetTokenRepository,
+    pending_identity_repository::PendingIdentityRepository,
 };
 use auth_service::iam::identity::domain::services::identity_command_service::IdentityCommandService;
 use auth_service::iam::identity::domain::services::notification_service::NotificationService;
-use auth_service::iam::identity::domain::error::DomainError;
-use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
+use auth_service::shared::domain::model::entities::auditable_model::AuditableModel;
 use mockall::mock;
 use std::error::Error;
 use std::future::Future;
 use std::time::Duration;
-use auth_service::shared::domain::model::entities::auditable_model::AuditableModel;
-use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
-use async_trait::async_trait;
-use super::test_mocks::*;
 
 // Mock the repository specifically for this test file
 mock! {
     pub IdentityRepository {}
-    
+
     impl IdentityRepository for IdentityRepository {
         fn save(&self, identity: Identity) -> impl Future<Output = Result<Identity, Box<dyn Error + Send + Sync>>> + Send;
         fn find_by_email(&self, email: &Email) -> impl Future<Output = Result<Option<Identity>, Box<dyn Error + Send + Sync>>> + Send;
@@ -89,7 +90,7 @@ async fn test_register_identity_success() {
         .expect_save()
         .times(1)
         .returning(|_, _, _| Ok(()));
-    
+
     mock_notification_service
         .expect_send_verification_email()
         .times(1)
@@ -102,10 +103,10 @@ async fn test_register_identity_success() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
 
-    let email = Email::new("test@gmail.com".to_string()).unwrap(); 
+    let email = Email::new("test@gmail.com".to_string()).unwrap();
     let password = Password::new("SecurePass123!".to_string()).unwrap();
     // Default provider is Email
     let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email);
@@ -116,14 +117,14 @@ async fn test_register_identity_success() {
 
 #[tokio::test]
 async fn test_register_identity_invalid_mx() {
-    let mock_repo = MockIdentityRepository::new(); 
+    let mock_repo = MockIdentityRepository::new();
     let mock_pending_repo = MockPendingIdentityRepository::new();
     let mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mock_notification_service = MockNotificationService::new();
     let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
-    
+
     let service = IdentityCommandServiceImpl::new(
         mock_repo,
         mock_pending_repo,
@@ -131,17 +132,17 @@ async fn test_register_identity_invalid_mx() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
 
     // This domain definitely doesn't exist
-    let email = Email::new("user@thisdomaindefinitelydoesnotexist12345.com".to_string()).unwrap(); 
-    
+    let email = Email::new("user@thisdomaindefinitelydoesnotexist12345.com".to_string()).unwrap();
+
     let password = Password::new("SecurePass123!".to_string()).unwrap();
     let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email);
 
     let result: Result<(Identity, String), DomainError> = service.handle(command).await;
-    
+
     match result {
         Err(DomainError::InvalidEmailDomain(_)) => assert!(true),
         _ => panic!("Expected InvalidEmailDomain error, got {:?}", result),
@@ -157,7 +158,7 @@ async fn test_password_is_hashed_before_saving_pending() {
     let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
-    
+
     let plain_password = "SecretPassword123!";
 
     mock_repo
@@ -192,7 +193,7 @@ async fn test_password_is_hashed_before_saving_pending() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
     let email = Email::new("hash_test@gmail.com".to_string()).unwrap();
     let password = Password::new(plain_password.to_string()).unwrap();
@@ -211,7 +212,7 @@ async fn test_register_identity_overwrites_existing_pending() {
     let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
-    
+
     let old_token_hash = "old_token_hash_123";
 
     mock_repo
@@ -249,7 +250,7 @@ async fn test_register_identity_overwrites_existing_pending() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
     let email = Email::new("overwrite@gmail.com".to_string()).unwrap();
     let password = Password::new("SecurePass123!".to_string()).unwrap();
@@ -270,18 +271,16 @@ async fn test_register_identity_duplicate_email() {
     let reset_ttl = Duration::from_secs(900);
 
     // Simulate existing user found
-    mock_repo
-        .expect_find_by_email()
-        .returning(|email| {
-            let existing_identity = Identity::new(
-                IdentityId::new(),
-                email.clone(),
-                Password::new("hashed_password_valid_length".to_string()).unwrap(),
-                AuthProvider::Email,
-                AuditableModel::new(),
-            );
-            Box::pin(async move { Ok(Some(existing_identity)) })
-        });
+    mock_repo.expect_find_by_email().returning(|email| {
+        let existing_identity = Identity::new(
+            IdentityId::new(),
+            email.clone(),
+            Password::new("hashed_password_valid_length".to_string()).unwrap(),
+            AuthProvider::Email,
+            AuditableModel::new(),
+        );
+        Box::pin(async move { Ok(Some(existing_identity)) })
+    });
 
     let service = IdentityCommandServiceImpl::new(
         mock_repo,
@@ -290,7 +289,7 @@ async fn test_register_identity_duplicate_email() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
 
     let email = Email::new("duplicate@gmail.com".to_string()).unwrap();
@@ -318,19 +317,16 @@ async fn test_confirm_registration_success() {
     let token_str = "some-uuid-token";
     // In real code we use VerificationToken logic, but here we can just mock what 'find' returns
     // The service computes hash(token) -> finds in pending repo
-    
+
     // We expect a call to find with SOME hash.
-    mock_pending_repo
-        .expect_find()
-        .times(1)
-        .returning(|_| {
-            let pending = PendingIdentity {
-                email: "test@gmail.com".to_string(),
-                password_hash: "$2a$12$somehash".to_string(),
-                provider: "Email".to_string(),
-            };
-            Ok(Some(pending))
-        });
+    mock_pending_repo.expect_find().times(1).returning(|_| {
+        let pending = PendingIdentity {
+            email: "test@gmail.com".to_string(),
+            password_hash: "$2a$12$somehash".to_string(),
+            provider: "Email".to_string(),
+        };
+        Ok(Some(pending))
+    });
 
     // We expect a call to save in IdentityRepository (the final persistence)
     mock_repo
@@ -351,15 +347,15 @@ async fn test_confirm_registration_success() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
-    
+
     let command = ConfirmRegistrationCommand {
         token: token_str.to_string(),
     };
 
     let result: Result<Identity, DomainError> = service.confirm_registration(command).await;
-    
+
     assert!(result.is_ok());
     let identity = result.unwrap();
     assert_eq!(identity.email().value(), "test@gmail.com");
@@ -376,7 +372,7 @@ async fn test_confirm_registration_invalid_token() {
     let reset_ttl = Duration::from_secs(900);
 
     let token_str = "invalid-uuid-token";
-    
+
     // Simulate token not found (returns None)
     mock_pending_repo
         .expect_find()
@@ -390,21 +386,20 @@ async fn test_confirm_registration_invalid_token() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
-    
+
     let command = ConfirmRegistrationCommand {
         token: token_str.to_string(),
     };
 
     let result: Result<Identity, DomainError> = service.confirm_registration(command).await;
-    
+
     match result {
         Err(DomainError::InvalidToken) => assert!(true),
         _ => panic!("Expected InvalidToken error, got {:?}", result),
     }
 }
-
 
 #[test]
 fn test_confirm_email_query_validation_success() {
@@ -471,18 +466,15 @@ async fn test_confirm_registration_with_query_object() {
     let reset_ttl = Duration::from_secs(900);
 
     let token_str = "a".repeat(32);
-    
-    mock_pending_repo
-        .expect_find()
-        .times(1)
-        .returning(|_| {
-            let pending = PendingIdentity {
-                email: "querytest@gmail.com".to_string(),
-                password_hash: "$2a$12$somehash".to_string(),
-                provider: "Email".to_string(),
-            };
-            Ok(Some(pending))
-        });
+
+    mock_pending_repo.expect_find().times(1).returning(|_| {
+        let pending = PendingIdentity {
+            email: "querytest@gmail.com".to_string(),
+            password_hash: "$2a$12$somehash".to_string(),
+            provider: "Email".to_string(),
+        };
+        Ok(Some(pending))
+    });
 
     mock_repo
         .expect_save()
@@ -501,18 +493,18 @@ async fn test_confirm_registration_with_query_object() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
-    
+
     // Create query object first (validates token)
     let query = ConfirmEmailQuery::new(token_str.clone());
     assert!(query.is_ok());
-    
+
     // Then create command from validated query
     let command = ConfirmRegistrationCommand::new(query.unwrap().token);
 
     let result: Result<Identity, DomainError> = service.confirm_registration(command).await;
-    
+
     assert!(result.is_ok());
     let identity = result.unwrap();
     assert_eq!(identity.email().value(), "querytest@gmail.com");
@@ -543,24 +535,21 @@ async fn test_end_to_end_registration_flow() {
         .expect_save()
         .times(1)
         .returning(|_, _, _| Ok(()));
-    
+
     mock_notification_service
         .expect_send_verification_email()
         .times(1)
         .returning(|_, _| Ok(()));
 
     // Step 2: Confirm (will be called later)
-    mock_pending_repo
-        .expect_find()
-        .times(1)
-        .returning(|_| {
-            let pending = PendingIdentity {
-                email: "endtoend@gmail.com".to_string(),
-                password_hash: "$2a$12$somehash".to_string(),
-                provider: "Email".to_string(),
-            };
-            Ok(Some(pending))
-        });
+    mock_pending_repo.expect_find().times(1).returning(|_| {
+        let pending = PendingIdentity {
+            email: "endtoend@gmail.com".to_string(),
+            password_hash: "$2a$12$somehash".to_string(),
+            provider: "Email".to_string(),
+        };
+        Ok(Some(pending))
+    });
 
     mock_repo
         .expect_save()
@@ -579,11 +568,11 @@ async fn test_end_to_end_registration_flow() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
 
     // Execute Step 1: Register
-    let email = Email::new("endtoend@gmail.com".to_string()).unwrap(); 
+    let email = Email::new("endtoend@gmail.com".to_string()).unwrap();
     let password = Password::new("SecurePass123!".to_string()).unwrap();
     let register_cmd = RegisterIdentityCommand::new(email, password, AuthProvider::Email);
 
@@ -594,7 +583,7 @@ async fn test_end_to_end_registration_flow() {
     // Execute Step 2: Confirm with token from registration
     let confirm_cmd = ConfirmRegistrationCommand::new(token);
     let confirm_result = service.confirm_registration(confirm_cmd).await;
-    
+
     assert!(confirm_result.is_ok());
     let final_identity = confirm_result.unwrap();
     assert_eq!(final_identity.email().value(), "endtoend@gmail.com");

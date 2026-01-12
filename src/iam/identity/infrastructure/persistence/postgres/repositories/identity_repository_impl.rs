@@ -8,7 +8,7 @@ use crate::iam::identity::domain::{
     repositories::identity_repository::IdentityRepository,
 };
 use crate::iam::identity::infrastructure::persistence::postgres::model::{
-    ActiveModel, Entity as IdentityEntity, Column,
+    ActiveModel, Column, Entity as IdentityEntity,
 };
 use crate::shared::domain::model::entities::auditable_model::AuditableModel;
 use sea_orm::*;
@@ -26,7 +26,10 @@ impl IdentityRepositoryImpl {
 }
 
 impl IdentityRepository for IdentityRepositoryImpl {
-    async fn save(&self, identity: DomainIdentity) -> Result<DomainIdentity, Box<dyn Error + Send + Sync>> {
+    async fn save(
+        &self,
+        identity: DomainIdentity,
+    ) -> Result<DomainIdentity, Box<dyn Error + Send + Sync>> {
         // Password is already hashed by the service layer
         let password_hash_value = identity.password().value().to_string();
 
@@ -39,14 +42,15 @@ impl IdentityRepository for IdentityRepositoryImpl {
             updated_at: Set(identity.audit().updated_at.into()),
         };
 
-        IdentityEntity::insert(active_model)
-             .exec(&self.db)
-             .await?;
-        
+        IdentityEntity::insert(active_model).exec(&self.db).await?;
+
         Ok(identity)
     }
 
-    async fn find_by_email(&self, email: &Email) -> Result<Option<DomainIdentity>, Box<dyn Error + Send + Sync>> {
+    async fn find_by_email(
+        &self,
+        email: &Email,
+    ) -> Result<Option<DomainIdentity>, Box<dyn Error + Send + Sync>> {
         let model = IdentityEntity::find()
             .filter(Column::Email.eq(email.value()))
             .one(&self.db)
@@ -54,9 +58,11 @@ impl IdentityRepository for IdentityRepositoryImpl {
 
         match model {
             Some(m) => {
-                let email = Email::new(m.email).map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
-                let provider = AuthProvider::from_str(&m.auth_provider).map_err(|e| Box::<dyn Error + Send + Sync>::from(e))?;
-                
+                let email =
+                    Email::new(m.email).map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+                let provider = AuthProvider::from_str(&m.auth_provider)
+                    .map_err(|e| Box::<dyn Error + Send + Sync>::from(e))?;
+
                 let audit = AuditableModel {
                     created_at: m.created_at.into(),
                     updated_at: m.updated_at.into(),
@@ -65,12 +71,13 @@ impl IdentityRepository for IdentityRepositoryImpl {
                 Ok(Some(DomainIdentity::new(
                     IdentityId::from_uuid(m.id),
                     email,
-                    Password::new(m.password_hash).map_err(|e| Box::<dyn Error + Send + Sync>::from(e))?,
+                    Password::new(m.password_hash)
+                        .map_err(|e| Box::<dyn Error + Send + Sync>::from(e))?,
                     provider,
-                    audit
+                    audit,
                 )))
             }
-            None => Ok(None)
+            None => Ok(None),
         }
     }
 }

@@ -44,7 +44,9 @@ mod tests {
             "users"
         );
         assert_eq!(
-            SnakeCaseWithPluralizedTablePhysicalNamingStrategy::to_physical_table_name("UserProfile"),
+            SnakeCaseWithPluralizedTablePhysicalNamingStrategy::to_physical_table_name(
+                "UserProfile"
+            ),
             "user_profiles"
         );
     }

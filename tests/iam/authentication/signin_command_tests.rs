@@ -26,8 +26,8 @@ async fn test_signin_success() {
     mock_identity_facade
         .expect_verify_credentials()
         .with(
-            mockall::predicate::eq(email.clone()), 
-            mockall::predicate::eq(password.clone())
+            mockall::predicate::eq(email.clone()),
+            mockall::predicate::eq(password.clone()),
         )
         .times(1)
         .returning(move |_, _| Ok(Some(user_id)));
@@ -52,9 +52,7 @@ async fn test_signin_success() {
     let jti_clone_2 = jti_string.clone();
     mock_session_repository
         .expect_create_session()
-        .withf(move |uid: &Uuid, jti: &str| {
-            *uid == user_id && jti == jti_clone_2
-        })
+        .withf(move |uid: &Uuid, jti: &str| *uid == user_id && jti == jti_clone_2)
         .times(1)
         .returning(|_, _| Ok(()));
 
@@ -71,7 +69,7 @@ async fn test_signin_success() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = SigninCommand::new(email, password);
@@ -96,8 +94,8 @@ async fn test_signin_invalid_credentials() {
     mock_identity_facade
         .expect_verify_credentials()
         .with(
-            mockall::predicate::eq(email.clone()), 
-            mockall::predicate::eq(password.clone())
+            mockall::predicate::eq(email.clone()),
+            mockall::predicate::eq(password.clone()),
         )
         .times(1)
         .returning(|_, _| Ok(None));
@@ -107,7 +105,7 @@ async fn test_signin_invalid_credentials() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = SigninCommand::new(email, password);
@@ -135,7 +133,7 @@ async fn test_signin_identity_facade_error() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = SigninCommand::new(email, password);
@@ -171,7 +169,7 @@ async fn test_signin_token_generation_error() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = SigninCommand::new(email, password);
@@ -221,7 +219,7 @@ async fn test_signin_session_creation_error() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = SigninCommand::new(email, password);
@@ -239,7 +237,7 @@ async fn test_signin_with_different_user_ids() {
     let mut mock_session_repository = MockSessionRepositoryShim::new();
 
     let user_id_1 = Uuid::new_v4();
-    
+
     // First signin
     mock_identity_facade
         .expect_verify_credentials()
@@ -268,7 +266,7 @@ async fn test_signin_with_different_user_ids() {
         .withf(move |uid, _| *uid == user_id_1)
         .times(1)
         .returning(|_, _| Ok(()));
-        
+
     mock_session_repository
         .expect_save_refresh_token()
         .withf(move |uid, _, _| *uid == user_id_1)
@@ -278,7 +276,7 @@ async fn test_signin_with_different_user_ids() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command_1 = SigninCommand::new("user1@example.com".to_string(), "pass1".to_string());

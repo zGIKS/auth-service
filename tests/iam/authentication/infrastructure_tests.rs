@@ -18,32 +18,44 @@ struct Claims {
 async fn test_redis_session_repository_expiration_and_storage() {
     // This test requires a running Redis instance at redis://127.0.0.1/
     // If Redis is not available, this test will fail.
-    
+
     let client = redis::Client::open("redis://127.0.0.1/").expect("Failed to create Redis client");
-    
+
     // Check connection first to skip if not available (optional, but good for CI without services)
     // For now we assume user has it or wants to know if it fails.
-    
+
     let session_duration = 900; // 15 minutes (900 seconds)
     let repo = RedisSessionRepository::new(client.clone(), session_duration);
-    
+
     let user_id = Uuid::new_v4();
     let jti_value = format!("jti_{}", Uuid::new_v4());
 
     // 1. Create Session
     let result = repo.create_session(user_id, &jti_value).await;
-    assert!(result.is_ok(), "Failed to create session in Redis: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to create session in Redis: {:?}",
+        result.err()
+    );
 
     // 2. Verify Storage directly from Redis
-    let mut con = client.get_multiplexed_async_connection().await.expect("Failed to get redis connection");
+    let mut con = client
+        .get_multiplexed_async_connection()
+        .await
+        .expect("Failed to get redis connection");
     let key = format!("session:{}", user_id);
-    
+
     let stored_jti: String = con.get(&key).await.expect("Failed to get key from Redis");
     assert_eq!(stored_jti, jti_value, "Stored JTI does not match");
 
     // 3. Verify Expiration (TTL)
     let ttl: i64 = con.ttl(&key).await.expect("Failed to get TTL");
-    assert!(ttl > 0 && ttl <= session_duration as i64, "TTL {} is not within expected range (0, {}]", ttl, session_duration);
+    assert!(
+        ttl > 0 && ttl <= session_duration as i64,
+        "TTL {} is not within expected range (0, {}]",
+        ttl,
+        session_duration
+    );
 
     // 4. Verify ACTUAL expiration (New short-lived session)
     let short_duration = 1;
@@ -51,13 +63,19 @@ async fn test_redis_session_repository_expiration_and_storage() {
     let short_user_id = Uuid::new_v4();
     let short_jti = "short_lived_jti".to_string();
 
-    short_repo.create_session(short_user_id, &short_jti).await.expect("Failed to create short session");
-    
+    short_repo
+        .create_session(short_user_id, &short_jti)
+        .await
+        .expect("Failed to create short session");
+
     // Wait for expiration
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
     let short_key = format!("session:{}", short_user_id);
-    let exists: bool = con.exists(&short_key).await.expect("Failed to check existence");
+    let exists: bool = con
+        .exists(&short_key)
+        .await
+        .expect("Failed to check existence");
     assert!(!exists, "Session should have expired by Redis TTL");
 }
 
@@ -78,14 +96,14 @@ fn test_jwt_token_service_generation() {
     // 2. Validate Token (using jsonwebtoken directly to verify)
     let decoding_key = DecodingKey::from_secret(secret.as_bytes());
     let validation = Validation::default();
-    
-    let token_data = decode::<Claims>(
-        token.value(),
-        &decoding_key,
-        &validation
-    );
 
-    assert!(token_data.is_ok(), "Failed to decode generated token: {:?}", token_data.err());
+    let token_data = decode::<Claims>(token.value(), &decoding_key, &validation);
+
+    assert!(
+        token_data.is_ok(),
+        "Failed to decode generated token: {:?}",
+        token_data.err()
+    );
     let claims = token_data.unwrap().claims;
     assert_eq!(claims.sub, user_id.to_string());
     assert_eq!(claims.jti, jti);

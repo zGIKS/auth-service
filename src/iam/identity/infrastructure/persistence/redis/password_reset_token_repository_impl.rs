@@ -1,10 +1,9 @@
-use async_trait::async_trait;
-use redis::{Client, AsyncCommands};
-use std::time::Duration;
 use crate::iam::identity::domain::{
-    error::DomainError,
-    repositories::password_reset_token_repository::PasswordResetTokenRepository,
+    error::DomainError, repositories::password_reset_token_repository::PasswordResetTokenRepository,
 };
+use async_trait::async_trait;
+use redis::{AsyncCommands, Client};
+use std::time::Duration;
 
 pub struct PasswordResetTokenRepositoryImpl {
     client: Client,
@@ -30,8 +29,16 @@ impl PasswordResetTokenRepositoryImpl {
 
 #[async_trait]
 impl PasswordResetTokenRepository for PasswordResetTokenRepositoryImpl {
-    async fn save(&self, email: String, token_hash: String, ttl: Duration) -> Result<(), DomainError> {
-        let mut con = self.client.get_multiplexed_async_connection().await
+    async fn save(
+        &self,
+        email: String,
+        token_hash: String,
+        ttl: Duration,
+    ) -> Result<(), DomainError> {
+        let mut con = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         let lock_key = Self::format_lock_key(&email);
@@ -40,21 +47,27 @@ impl PasswordResetTokenRepository for PasswordResetTokenRepositoryImpl {
         let ttl_secs = ttl.as_secs();
 
         // Acquire distributed lock (10 second timeout)
-        let lock_acquired: bool = con.set_nx(&lock_key, "locked").await
+        let lock_acquired: bool = con
+            .set_nx(&lock_key, "locked")
+            .await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         if !lock_acquired {
             return Err(DomainError::InternalError(
-                "Password reset request already in progress for this email".to_string()
+                "Password reset request already in progress for this email".to_string(),
             ));
         }
 
         // Set lock expiration to prevent deadlock
-        let _: () = con.expire(&lock_key, 10).await
+        let _: () = con
+            .expire(&lock_key, 10)
+            .await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         // Find and delete old token if exists
-        let old_token_hash: Option<String> = con.get(&email_key).await
+        let old_token_hash: Option<String> = con
+            .get(&email_key)
+            .await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         let mut pipe = redis::pipe();
@@ -70,28 +83,39 @@ impl PasswordResetTokenRepository for PasswordResetTokenRepositoryImpl {
         pipe.set_ex(&token_key, &email, ttl_secs);
         pipe.set_ex(&email_key, &token_hash, ttl_secs);
 
-        let _: () = pipe.query_async(&mut con).await
+        let _: () = pipe
+            .query_async(&mut con)
+            .await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         // Release lock
-        let _: () = con.del(&lock_key).await
+        let _: () = con
+            .del(&lock_key)
+            .await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         Ok(())
     }
 
     async fn find_email_by_token(&self, token_hash: &str) -> Result<Option<String>, DomainError> {
-        let mut con = self.client.get_multiplexed_async_connection().await
+        let mut con = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         let key = Self::format_key(token_hash);
-        let email: Option<String> = con.get(&key).await
+        let email: Option<String> = con
+            .get(&key)
+            .await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         // If token exists, verify it is the latest one for this email
         if let Some(ref e) = email {
             let email_key = Self::format_email_key(e);
-            let active_token_hash: Option<String> = con.get(&email_key).await
+            let active_token_hash: Option<String> = con
+                .get(&email_key)
+                .await
                 .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
             if let Some(active_hash) = active_token_hash {
@@ -99,7 +123,7 @@ impl PasswordResetTokenRepository for PasswordResetTokenRepositoryImpl {
                     return Ok(None);
                 }
             } else {
-                // Inconsistent state: token exists but no mapping from email. 
+                // Inconsistent state: token exists but no mapping from email.
                 // Treat as invalid or allow? strict: invalid.
                 return Ok(None);
             }
@@ -109,14 +133,19 @@ impl PasswordResetTokenRepository for PasswordResetTokenRepositoryImpl {
     }
 
     async fn delete(&self, token_hash: &str) -> Result<(), DomainError> {
-        let mut con = self.client.get_multiplexed_async_connection().await
+        let mut con = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         let key = Self::format_key(token_hash);
-        
+
         // Get email to clean up the secondary index
-        let email: Option<String> = con.get(&key).await
-             .map_err(|e| DomainError::InternalError(e.to_string()))?;
+        let email: Option<String> = con
+            .get(&key)
+            .await
+            .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         let mut pipe = redis::pipe();
         let pipe = pipe.atomic();
@@ -128,7 +157,9 @@ impl PasswordResetTokenRepository for PasswordResetTokenRepositoryImpl {
             pipe.del(email_key);
         }
 
-        let _: () = pipe.query_async(&mut con).await
+        let _: () = pipe
+            .query_async(&mut con)
+            .await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
         Ok(())
