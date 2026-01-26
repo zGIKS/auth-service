@@ -6,7 +6,6 @@ use auth_service::iam::authentication::domain::model::value_objects::{token::Tok
 use auth_service::iam::authentication::domain::services::authentication_command_service::AuthenticationCommandService;
 use validator::Validate;
 use uuid::Uuid;
-use std::error::Error;
 
 #[tokio::test]
 async fn test_signin_success() {

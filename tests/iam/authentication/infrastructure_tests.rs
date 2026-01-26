@@ -1,7 +1,6 @@
 use auth_service::iam::authentication::domain::services::authentication_command_service::{SessionRepository, TokenService};
 use auth_service::iam::authentication::infrastructure::persistence::redis::redis_session_repository::RedisSessionRepository;
 use auth_service::iam::authentication::infrastructure::services::jwt_token_service::JwtTokenService;
-use auth_service::iam::authentication::domain::model::value_objects::token::Token;
 use uuid::Uuid;
 use redis::AsyncCommands;
 use jsonwebtoken::{decode, DecodingKey, Validation};

@@ -1,6 +1,9 @@
 use crate::iam::authentication::domain::{
     model::{
-        commands::{refresh_token_command::RefreshTokenCommand, signin_command::SigninCommand},
+        commands::{
+            logout_command::LogoutCommand, refresh_token_command::RefreshTokenCommand,
+            signin_command::SigninCommand,
+        },
         value_objects::{refresh_token::RefreshToken, token::Token},
     },
     services::authentication_command_service::{
@@ -102,5 +105,18 @@ where
             .await?;
 
         Ok((new_token, new_refresh_token))
+    }
+
+    async fn logout(
+        &self,
+        command: LogoutCommand,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let refresh_token = RefreshToken::new(command.refresh_token);
+        
+        self.session_repository
+            .delete_refresh_token(&refresh_token)
+            .await?;
+
+        Ok(())
     }
 }

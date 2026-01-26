@@ -1,5 +1,8 @@
 use crate::iam::authentication::domain::model::{
-    commands::{refresh_token_command::RefreshTokenCommand, signin_command::SigninCommand},
+    commands::{
+        logout_command::LogoutCommand, refresh_token_command::RefreshTokenCommand,
+        signin_command::SigninCommand,
+    },
     value_objects::{claims::Claims, refresh_token::RefreshToken, token::Token},
 };
 use async_trait::async_trait;
@@ -63,6 +66,7 @@ pub trait AuthenticationCommandService: Send + Sync {
         &self,
         command: RefreshTokenCommand,
     ) -> Result<(Token, RefreshToken), Box<dyn Error + Send + Sync>>;
+    async fn logout(&self, command: LogoutCommand) -> Result<(), Box<dyn Error + Send + Sync>>;
 }
 
 #[async_trait]

@@ -11,7 +11,6 @@ use auth_service::iam::identity::domain::model::value_objects::{
 use auth_service::iam::identity::domain::services::identity_command_service::IdentityCommandService;
 use auth_service::shared::domain::model::entities::auditable_model::AuditableModel;
 use std::time::Duration;
-use uuid::Uuid;
 
 #[tokio::test]
 async fn test_reset_password_success() {
