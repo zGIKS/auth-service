@@ -43,6 +43,7 @@ mock! {
 mock! {
     pub SessionRepositoryShim {
         pub fn create_session(&self, user_id: Uuid, jti: &str) -> Result<(), Box<dyn Error + Send + Sync>>;
+        pub fn get_session_jti(&self, user_id: Uuid) -> Result<Option<String>, Box<dyn Error + Send + Sync>>;
         pub fn save_refresh_token(&self, user_id: Uuid, refresh_token: RefreshToken, ttl_seconds: u64) -> Result<(), Box<dyn Error + Send + Sync>>;
         pub fn get_user_by_refresh_token(&self, refresh_token: RefreshToken) -> Result<Option<Uuid>, Box<dyn Error + Send + Sync>>;
         pub fn delete_refresh_token(&self, refresh_token: RefreshToken) -> Result<(), Box<dyn Error + Send + Sync>>;
@@ -60,6 +61,13 @@ impl SessionRepository for MockSessionRepositoryShim {
         jti: &str,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.create_session(user_id, jti)
+    }
+
+    async fn get_session_jti(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<String>, Box<dyn Error + Send + Sync>> {
+        self.get_session_jti(user_id)
     }
 
     async fn save_refresh_token(

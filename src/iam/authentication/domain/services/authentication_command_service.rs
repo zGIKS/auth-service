@@ -27,6 +27,10 @@ pub trait SessionRepository: Send + Sync {
         user_id: Uuid,
         jti: &str,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
+    async fn get_session_jti(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<String>, Box<dyn Error + Send + Sync>>;
 
     // Refresh Token Management
     async fn save_refresh_token(

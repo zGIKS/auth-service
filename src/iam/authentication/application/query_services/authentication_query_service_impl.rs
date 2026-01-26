@@ -59,6 +59,24 @@ where
             }
         }
 
+        // 4. Check if session exists in Redis and matches JTI
+        // This ensures that if the session is deleted (e.g. forced logout), the token is invalid immediately
+        let active_jti = self
+            .session_repository
+            .get_session_jti(claims.sub)
+            .await?;
+
+        match active_jti {
+            Some(jti) => {
+                if jti != claims.jti {
+                    return Err("Token does not match active session".into());
+                }
+            }
+            None => {
+                return Err("Session has expired or does not exist".into());
+            }
+        }
+
         Ok(claims)
     }
 }

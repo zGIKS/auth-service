@@ -52,6 +52,25 @@ impl SessionRepository for RedisSessionRepository {
         Ok(())
     }
 
+    async fn get_session_jti(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<String>, Box<dyn Error + Send + Sync>> {
+        let mut con = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        let key = format!("session:{}", user_id);
+        let jti: Option<String> = con
+            .get(key)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        Ok(jti)
+    }
+
     async fn save_refresh_token(
         &self,
         user_id: Uuid,
