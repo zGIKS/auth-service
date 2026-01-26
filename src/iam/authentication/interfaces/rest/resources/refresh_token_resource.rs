@@ -1,6 +1,6 @@
 use serde::Deserialize;
-use validator::Validate;
 use utoipa::ToSchema;
+use validator::Validate;
 
 #[derive(Deserialize, Validate, ToSchema)]
 pub struct RefreshTokenResource {

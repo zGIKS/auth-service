@@ -29,8 +29,5 @@ pub trait IdentityCommandService: Send + Sync {
         command: RequestPasswordResetCommand,
     ) -> Result<(), DomainError>;
 
-    async fn reset_password(
-        &self,
-        command: ResetPasswordCommand,
-    ) -> Result<(), DomainError>;
+    async fn reset_password(&self, command: ResetPasswordCommand) -> Result<(), DomainError>;
 }

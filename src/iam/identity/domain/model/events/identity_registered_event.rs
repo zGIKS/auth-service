@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use crate::iam::identity::domain::model::value_objects::identity_id::IdentityId;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone)]
 pub struct IdentityRegisteredEvent {

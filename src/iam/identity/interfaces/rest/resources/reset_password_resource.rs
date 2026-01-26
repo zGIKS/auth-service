@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use validator::Validate;
 use utoipa::ToSchema;
+use validator::Validate;
 
 #[derive(Debug, Serialize, Deserialize, Validate, ToSchema)]
 pub struct ResetPasswordRequest {

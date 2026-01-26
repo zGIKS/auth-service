@@ -1,12 +1,11 @@
-use async_trait::async_trait;
 use crate::messaging::{
     domain::{
-        error::MessagingError,
-        model::commands::send_email_command::SendEmailCommand,
+        error::MessagingError, model::commands::send_email_command::SendEmailCommand,
         services::messaging_command_service::MessagingCommandService,
     },
     interfaces::acl::messaging_facade::MessagingFacade,
 };
+use async_trait::async_trait;
 
 pub struct MessagingFacadeImpl<S>
 where
@@ -37,7 +36,7 @@ where
     ) -> Result<(), MessagingError> {
         let command = SendEmailCommand::new(to, subject, body)
             .map_err(|e| MessagingError::SendError(e.to_string()))?;
-        
+
         self.command_service.send_email(command).await
     }
 }

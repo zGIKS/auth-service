@@ -12,6 +12,9 @@ pub struct ResetPasswordCommand {
 
 impl ResetPasswordCommand {
     pub fn new(token: String, new_password: Password) -> Self {
-        Self { token, new_password }
+        Self {
+            token,
+            new_password,
+        }
     }
 }

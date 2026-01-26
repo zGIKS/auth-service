@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use crate::messaging::domain::{
     error::MessagingError,
     model::commands::send_email_command::SendEmailCommand,
@@ -7,6 +6,7 @@ use crate::messaging::domain::{
         messaging_command_service::MessagingCommandService,
     },
 };
+use async_trait::async_trait;
 
 pub struct MessagingCommandServiceImpl<S>
 where
@@ -20,7 +20,9 @@ where
     S: EmailSenderService,
 {
     pub fn new(email_sender_service: S) -> Self {
-        Self { email_sender_service }
+        Self {
+            email_sender_service,
+        }
     }
 }
 

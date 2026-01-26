@@ -1,5 +1,5 @@
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
-use sha2::{Sha256, Digest};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerificationToken {

@@ -1,12 +1,14 @@
+use crate::iam::authentication::domain::model::value_objects::{
+    claims::Claims, refresh_token::RefreshToken, token::Token,
+};
 use crate::iam::authentication::domain::services::authentication_command_service::TokenService;
-use crate::iam::authentication::domain::model::value_objects::{token::Token, refresh_token::RefreshToken, claims::Claims};
-use jsonwebtoken::{encode, decode, Header, EncodingKey, DecodingKey, Validation};
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use std::error::Error;
-use chrono::{Utc, Duration};
-use rand::RngCore;
+use chrono::{Duration, Utc};
 use hex;
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use rand::RngCore;
+use serde::{Deserialize, Serialize};
+use std::error::Error;
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct JwtClaims {
@@ -23,18 +25,24 @@ pub struct JwtTokenService {
 
 impl JwtTokenService {
     pub fn new(secret: String, duration_seconds: u64) -> Self {
-        Self { secret, duration_seconds }
+        Self {
+            secret,
+            duration_seconds,
+        }
     }
 }
 
 impl TokenService for JwtTokenService {
-    fn generate_token(&self, user_id: Uuid) -> Result<(Token, String), Box<dyn Error + Send + Sync>> {
+    fn generate_token(
+        &self,
+        user_id: Uuid,
+    ) -> Result<(Token, String), Box<dyn Error + Send + Sync>> {
         let now = Utc::now();
         let expiration = now
             .checked_add_signed(Duration::seconds(self.duration_seconds as i64))
             .expect("valid timestamp")
             .timestamp();
-        
+
         let iat = now.timestamp() as usize;
 
         let jti = Uuid::new_v4().to_string();
@@ -46,8 +54,12 @@ impl TokenService for JwtTokenService {
             iat,
         };
 
-        let token_str = encode(&Header::default(), &claims, &EncodingKey::from_secret(self.secret.as_bytes()))
-            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+        let token_str = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(self.secret.as_bytes()),
+        )
+        .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
 
         Ok((Token::new(token_str), jti))
     }

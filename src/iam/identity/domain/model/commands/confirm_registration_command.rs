@@ -1,6 +1,6 @@
-use validator::Validate;
 use serde::Deserialize;
 use utoipa::ToSchema;
+use validator::Validate;
 
 #[derive(Debug, Validate, Deserialize, ToSchema)]
 pub struct ConfirmRegistrationCommand {

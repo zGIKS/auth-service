@@ -1,11 +1,13 @@
-use axum::{routing::{post, get}, Router};
+use auth_service::shared::interfaces::rest::app_state::AppState;
+use auth_service::{ApiDoc, iam};
+use axum::{
+    Router,
+    routing::{get, post},
+};
+use dotenvy::dotenv;
+use sea_orm::{ConnectionTrait, Database, Schema};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
-use dotenvy::dotenv;
-use sea_orm::{Database, Schema, ConnectionTrait};
-use auth_service::{iam, ApiDoc};
-use auth_service::shared::interfaces::rest::app_state::AppState;
-
 
 use auth_service::shared::infrastructure::persistence::redis as redis_infra;
 
@@ -19,7 +21,9 @@ async fn main() {
         .unwrap_or(3000);
 
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let db = Database::connect(&database_url).await.expect("Failed to connect to DB");
+    let db = Database::connect(&database_url)
+        .await
+        .expect("Failed to connect to DB");
 
     let redis_client = redis_infra::connect().await;
 
@@ -41,10 +45,18 @@ async fn main() {
 
     let frontend_url = std::env::var("FRONTEND_URL").ok();
 
+    let google_client_id = std::env::var("GOOGLE_CLIENT_ID").expect("GOOGLE_CLIENT_ID must be set");
+    let google_client_secret =
+        std::env::var("GOOGLE_CLIENT_SECRET").expect("GOOGLE_CLIENT_SECRET must be set");
+    let google_redirect_uri =
+        std::env::var("GOOGLE_REDIRECT_URI").expect("GOOGLE_REDIRECT_URI must be set");
+
     // Create table if not exists
     let builder = db.get_database_backend();
     let schema = Schema::new(builder);
-    let mut create_table_op = schema.create_table_from_entity(iam::identity::infrastructure::persistence::postgres::model::Entity);
+    let mut create_table_op = schema.create_table_from_entity(
+        iam::identity::infrastructure::persistence::postgres::model::Entity,
+    );
     let stmt = builder.build(create_table_op.if_not_exists());
 
     match db.execute(stmt).await {
@@ -60,13 +72,19 @@ async fn main() {
         pending_registration_ttl_seconds,
         password_reset_ttl_seconds,
         frontend_url,
+        google_client_id,
+        google_client_secret,
+        google_redirect_uri,
     };
 
     let app = Router::new()
         .route("/api/v1/auth/sign-up", post(iam::identity::interfaces::rest::controllers::identity_controller::register_identity))
         .route("/api/v1/auth/sign-in", post(iam::authentication::interfaces::rest::controllers::authentication_controller::signin))
+        .route("/api/v1/auth/logout", post(iam::authentication::interfaces::rest::controllers::authentication_controller::logout))
         .route("/api/v1/auth/refresh-token", post(iam::authentication::interfaces::rest::controllers::authentication_controller::refresh_token))
-        .route("/api/v1/auth/verify", post(iam::authentication::interfaces::rest::controllers::authentication_controller::verify_token))
+        .route("/api/v1/auth/verify", get(iam::authentication::interfaces::rest::controllers::authentication_controller::verify_token))
+        .route("/api/v1/auth/google", get(iam::federation::interfaces::rest::controllers::google_controller::redirect_to_google))
+        .route("/api/v1/auth/google/callback", get(iam::federation::interfaces::rest::controllers::google_controller::google_callback))
         .route("/api/v1/identity/confirm-registration", get(iam::identity::interfaces::rest::controllers::identity_controller::confirm_registration))
         .route("/api/v1/identity/forgot-password", post(iam::identity::interfaces::rest::controllers::identity_controller::request_password_reset))
         .route("/api/v1/identity/reset-password", post(iam::identity::interfaces::rest::controllers::identity_controller::reset_password))
@@ -74,12 +92,13 @@ async fn main() {
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", port);
-    let listener = tokio::net::TcpListener::bind(&addr)
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
     println!("Servidor corriendo en http://localhost:{}", port);
-    println!("Swagger UI disponible en http://localhost:{}/swagger-ui", port);
+    println!(
+        "Swagger UI disponible en http://localhost:{}/swagger-ui",
+        port
+    );
 
     axum::serve(listener, app).await.unwrap();
 }

@@ -1,14 +1,14 @@
 /// Tests for RequestPasswordResetCommand flow
 use super::test_mocks::*;
 use auth_service::iam::identity::application::command_services::identity_command_service_impl::IdentityCommandServiceImpl;
+use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::model::commands::request_password_reset_command::RequestPasswordResetCommand;
+use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 use auth_service::iam::identity::domain::model::value_objects::{
     auth_provider::AuthProvider, email::Email, password::Password,
 };
-use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::services::identity_command_service::IdentityCommandService;
 use auth_service::shared::domain::model::entities::auditable_model::AuditableModel;
-use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 use std::time::Duration;
 
 #[tokio::test]
@@ -48,9 +48,7 @@ async fn test_request_password_reset_success() {
     mock_notification_service
         .expect_send_password_reset_email()
         .times(1)
-        .withf(|to, link| {
-            to == "user@gmail.com" && link.contains("reset-password?token=")
-        })
+        .withf(|to, link| to == "user@gmail.com" && link.contains("reset-password?token="))
         .returning(|_, _| Ok(()));
 
     let service = IdentityCommandServiceImpl::new(
@@ -65,7 +63,7 @@ async fn test_request_password_reset_success() {
 
     let command = RequestPasswordResetCommand::new(test_email);
     let result = service.request_password_reset(command).await;
-    
+
     assert!(result.is_ok());
 }
 
@@ -101,7 +99,7 @@ async fn test_request_password_reset_non_existent_email_returns_ok() {
 
     let command = RequestPasswordResetCommand::new(test_email);
     let result = service.request_password_reset(command).await;
-    
+
     // Should return OK to prevent email enumeration
     assert!(result.is_ok());
 }
@@ -159,7 +157,7 @@ async fn test_request_password_reset_generates_secure_token() {
 
     let command = RequestPasswordResetCommand::new(test_email);
     let result = service.request_password_reset(command).await;
-    
+
     assert!(result.is_ok());
 }
 
@@ -193,9 +191,7 @@ async fn test_request_password_reset_uses_correct_ttl() {
     mock_password_reset_repo
         .expect_save()
         .times(1)
-        .withf(move |_, _, ttl_arg| {
-            *ttl_arg == Duration::from_secs(600)
-        })
+        .withf(move |_, _, ttl_arg| *ttl_arg == Duration::from_secs(600))
         .returning(|_, _, _| Ok(()));
 
     mock_notification_service
@@ -215,7 +211,7 @@ async fn test_request_password_reset_uses_correct_ttl() {
 
     let command = RequestPasswordResetCommand::new(test_email);
     let result = service.request_password_reset(command).await;
-    
+
     assert!(result.is_ok());
 }
 
@@ -256,8 +252,8 @@ async fn test_request_password_reset_email_contains_frontend_url() {
         .times(1)
         .withf(|_, link| {
             // Should contain frontend URL and token parameter
-            link.contains("reset-password?token=") && 
-            (link.starts_with("http://localhost:5173") || link.starts_with("http://"))
+            link.contains("reset-password?token=")
+                && (link.starts_with("http://localhost:5173") || link.starts_with("http://"))
         })
         .returning(|_, _| Ok(()));
 
@@ -273,6 +269,6 @@ async fn test_request_password_reset_email_contains_frontend_url() {
 
     let command = RequestPasswordResetCommand::new(test_email);
     let result = service.request_password_reset(command).await;
-    
+
     assert!(result.is_ok());
 }

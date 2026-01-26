@@ -2,14 +2,14 @@
 /// These tests verify that previous tokens are invalidated when new ones are requested
 use super::test_mocks::*;
 use auth_service::iam::identity::application::command_services::identity_command_service_impl::IdentityCommandServiceImpl;
+use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::model::commands::request_password_reset_command::RequestPasswordResetCommand;
+use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 use auth_service::iam::identity::domain::model::value_objects::{
     auth_provider::AuthProvider, email::Email, password::Password,
 };
-use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::services::identity_command_service::IdentityCommandService;
 use auth_service::shared::domain::model::entities::auditable_model::AuditableModel;
-use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 use std::time::Duration;
 
 #[tokio::test]
@@ -71,21 +71,30 @@ async fn test_multiple_password_reset_requests_invalidate_previous_tokens() {
     // First request
     let command1 = RequestPasswordResetCommand::new(test_email.clone());
     let result1 = service.request_password_reset(command1).await;
-    assert!(result1.is_ok(), "First password reset request should succeed");
+    assert!(
+        result1.is_ok(),
+        "First password reset request should succeed"
+    );
 
     // Second request (invalidates first token)
     let command2 = RequestPasswordResetCommand::new(test_email.clone());
     let result2 = service.request_password_reset(command2).await;
-    assert!(result2.is_ok(), "Second password reset request should succeed");
+    assert!(
+        result2.is_ok(),
+        "Second password reset request should succeed"
+    );
 
     // Third request (invalidates second token)
     let command3 = RequestPasswordResetCommand::new(test_email);
     let result3 = service.request_password_reset(command3).await;
-    assert!(result3.is_ok(), "Third password reset request should succeed");
+    assert!(
+        result3.is_ok(),
+        "Third password reset request should succeed"
+    );
 
     // Note: The actual token invalidation happens in the repository layer
     // password_reset_token_repository_impl.rs:
-    // 
+    //
     // fn save():
     //   1. Acquire distributed lock (password_reset_lock:{email})
     //   2. Get old token hash from email key (password_reset_email:{email})
@@ -157,9 +166,9 @@ async fn test_password_reset_handles_concurrent_requests_safely() {
 
     let command = RequestPasswordResetCommand::new(test_email);
     let result = service.request_password_reset(command).await;
-    
+
     assert!(result.is_ok());
-    
+
     // If a second concurrent request arrives while the first is processing:
     // - The distributed lock (password_reset_lock:{email}) is already held
     // - SET NX returns false

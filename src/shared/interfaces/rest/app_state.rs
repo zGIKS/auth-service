@@ -1,5 +1,5 @@
-use sea_orm::DatabaseConnection;
 use redis::Client;
+use sea_orm::DatabaseConnection;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -10,6 +10,9 @@ pub struct AppState {
     pub pending_registration_ttl_seconds: u64,
     pub password_reset_ttl_seconds: u64,
     pub frontend_url: Option<String>,
+    pub google_client_id: String,
+    pub google_client_secret: String,
+    pub google_redirect_uri: String,
 }
 
 impl axum::extract::FromRef<AppState> for DatabaseConnection {

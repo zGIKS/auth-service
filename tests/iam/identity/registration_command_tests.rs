@@ -1,15 +1,15 @@
 /// Tests for registration command and validation
 use super::test_mocks::*;
 use auth_service::iam::identity::application::command_services::identity_command_service_impl::IdentityCommandServiceImpl;
+use auth_service::iam::identity::domain::error::DomainError;
+use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::model::commands::register_identity_command::RegisterIdentityCommand;
+use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 use auth_service::iam::identity::domain::model::value_objects::{
     auth_provider::AuthProvider, email::Email, password::Password,
 };
-use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::services::identity_command_service::IdentityCommandService;
-use auth_service::iam::identity::domain::error::DomainError;
 use auth_service::shared::domain::model::entities::auditable_model::AuditableModel;
-use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 use std::time::Duration;
 
 #[tokio::test]
@@ -35,7 +35,7 @@ async fn test_register_identity_success() {
         .expect_save()
         .times(1)
         .returning(|_, _, _| Ok(()));
-    
+
     mock_notification_service
         .expect_send_verification_email()
         .times(1)
@@ -48,10 +48,10 @@ async fn test_register_identity_success() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
 
-    let email = Email::new("test@gmail.com".to_string()).unwrap(); 
+    let email = Email::new("test@gmail.com".to_string()).unwrap();
     let password = Password::new("SecurePass123!".to_string()).unwrap();
     let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email);
 
@@ -70,18 +70,16 @@ async fn test_register_identity_duplicate_email() {
     let reset_ttl = Duration::from_secs(900);
 
     // Simulate existing user found
-    mock_repo
-        .expect_find_by_email()
-        .returning(|email| {
-            let existing_identity = Identity::new(
-                IdentityId::new(),
-                email.clone(),
-                Password::new("hashed_password_valid_length".to_string()).unwrap(),
-                AuthProvider::Email,
-                AuditableModel::new(),
-            );
-            Box::pin(async move { Ok(Some(existing_identity)) })
-        });
+    mock_repo.expect_find_by_email().returning(|email| {
+        let existing_identity = Identity::new(
+            IdentityId::new(),
+            email.clone(),
+            Password::new("hashed_password_valid_length".to_string()).unwrap(),
+            AuthProvider::Email,
+            AuditableModel::new(),
+        );
+        Box::pin(async move { Ok(Some(existing_identity)) })
+    });
 
     let service = IdentityCommandServiceImpl::new(
         mock_repo,
@@ -90,7 +88,7 @@ async fn test_register_identity_duplicate_email() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
 
     let email = Email::new("duplicate@gmail.com".to_string()).unwrap();
@@ -107,14 +105,14 @@ async fn test_register_identity_duplicate_email() {
 
 #[tokio::test]
 async fn test_register_identity_invalid_mx() {
-    let mock_repo = MockIdentityRepository::new(); 
+    let mock_repo = MockIdentityRepository::new();
     let mock_pending_repo = MockPendingIdentityRepository::new();
     let mock_password_reset_repo = MockPasswordResetTokenRepository::new();
     let mock_notification_service = MockNotificationService::new();
     let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
-    
+
     let service = IdentityCommandServiceImpl::new(
         mock_repo,
         mock_pending_repo,
@@ -122,17 +120,17 @@ async fn test_register_identity_invalid_mx() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
 
     // This domain definitely doesn't exist
-    let email = Email::new("user@thisdomaindefinitelydoesnotexist12345.com".to_string()).unwrap(); 
-    
+    let email = Email::new("user@thisdomaindefinitelydoesnotexist12345.com".to_string()).unwrap();
+
     let password = Password::new("SecurePass123!".to_string()).unwrap();
     let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email);
 
     let result: Result<(Identity, String), DomainError> = service.handle(command).await;
-    
+
     match result {
         Err(DomainError::InvalidEmailDomain(_)) => assert!(true),
         _ => panic!("Expected InvalidEmailDomain error, got {:?}", result),
@@ -148,7 +146,7 @@ async fn test_password_is_hashed_before_saving_pending() {
     let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
-    
+
     let plain_password = "SecretPassword123!";
 
     mock_repo
@@ -183,7 +181,7 @@ async fn test_password_is_hashed_before_saving_pending() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
     let email = Email::new("hash_test@gmail.com".to_string()).unwrap();
     let password = Password::new(plain_password.to_string()).unwrap();
@@ -202,7 +200,7 @@ async fn test_register_identity_overwrites_existing_pending() {
     let mock_session_invalidation_service = MockSessionInvalidationService::new();
     let ttl = Duration::from_secs(900);
     let reset_ttl = Duration::from_secs(900);
-    
+
     let old_token_hash = "old_token_hash_123";
 
     mock_repo
@@ -240,7 +238,7 @@ async fn test_register_identity_overwrites_existing_pending() {
         mock_notification_service,
         mock_session_invalidation_service,
         ttl,
-        reset_ttl
+        reset_ttl,
     );
     let email = Email::new("overwrite@gmail.com".to_string()).unwrap();
     let password = Password::new("SecurePass123!".to_string()).unwrap();

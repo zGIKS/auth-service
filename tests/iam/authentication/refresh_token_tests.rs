@@ -14,11 +14,11 @@ async fn test_refresh_token_success() {
     let user_id = Uuid::new_v4();
     let old_refresh_token_str = "old_refresh_token".to_string();
     let old_refresh_token = RefreshToken::new(old_refresh_token_str.clone());
-    
+
     let new_token_str = "new_access_token".to_string();
     let new_jti_str = "new_jti".to_string();
     let new_token = Token::new(new_token_str.clone());
-    
+
     let new_refresh_token_str = "new_refresh_token".to_string();
     let new_refresh_token = RefreshToken::new(new_refresh_token_str.clone());
 
@@ -61,13 +61,15 @@ async fn test_refresh_token_success() {
     let new_refresh_token_clone_2 = new_refresh_token.clone();
     mock_session_repository
         .expect_save_refresh_token()
-        .withf(move |uid: &Uuid, rt: &RefreshToken, ttl: &u64| *uid == user_id && rt.value() == new_refresh_token_clone_2.value() && *ttl == 2592000)
+        .withf(move |uid: &Uuid, rt: &RefreshToken, ttl: &u64| {
+            *uid == user_id && rt.value() == new_refresh_token_clone_2.value() && *ttl == 2592000
+        })
         .returning(|_, _, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = RefreshTokenCommand::new(old_refresh_token_str);
@@ -97,12 +99,15 @@ async fn test_refresh_token_invalid() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = RefreshTokenCommand::new(invalid_refresh_token_str);
     let result = service.refresh_token(command).await;
 
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err().to_string(), "Invalid or expired refresh token");
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "Invalid or expired refresh token"
+    );
 }

@@ -10,11 +10,7 @@ pub struct RegisterIdentityCommand {
 }
 
 impl RegisterIdentityCommand {
-    pub fn new(
-        email: Email,
-        password: Password,
-        provider: AuthProvider,
-    ) -> Self {
+    pub fn new(email: Email, password: Password, provider: AuthProvider) -> Self {
         Self {
             email,
             password,

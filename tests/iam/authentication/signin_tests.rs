@@ -3,7 +3,6 @@ use auth_service::iam::authentication::domain::model::commands::signin_command::
 use auth_service::iam::authentication::domain::model::value_objects::{token::Token, refresh_token::RefreshToken};
 use auth_service::iam::authentication::domain::services::authentication_command_service::AuthenticationCommandService;
 use uuid::Uuid;
-use std::error::Error;
 use crate::iam::authentication::test_mocks::{MockIdentityFacadeShim, MockTokenServiceShim, MockSessionRepositoryShim};
 
 #[tokio::test]
@@ -24,7 +23,10 @@ async fn test_signin_success() {
     // Setup IdentityFacade mock
     mock_identity_facade
         .expect_verify_credentials()
-        .with(mockall::predicate::eq(email.clone()), mockall::predicate::eq(password.clone()))
+        .with(
+            mockall::predicate::eq(email.clone()),
+            mockall::predicate::eq(password.clone()),
+        )
         .returning(move |_, _| Ok(Some(user_id)));
 
     // Setup TokenService mock
@@ -34,7 +36,7 @@ async fn test_signin_success() {
         .expect_generate_token()
         .with(mockall::predicate::eq(user_id))
         .returning(move |_| Ok((token_clone.clone(), jti_clone.clone())));
-    
+
     let refresh_token_clone = refresh_token.clone();
     mock_token_service
         .expect_generate_refresh_token()
@@ -46,17 +48,19 @@ async fn test_signin_success() {
         .expect_create_session()
         .withf(move |uid: &Uuid, jti: &str| *uid == user_id && jti == jti_clone_2)
         .returning(|_, _| Ok(()));
-        
+
     let refresh_token_clone_2 = refresh_token.clone();
     mock_session_repository
         .expect_save_refresh_token()
-        .withf(move |uid: &Uuid, rt: &RefreshToken, ttl: &u64| *uid == user_id && rt.value() == refresh_token_clone_2.value() && *ttl == 2592000)
+        .withf(move |uid: &Uuid, rt: &RefreshToken, ttl: &u64| {
+            *uid == user_id && rt.value() == refresh_token_clone_2.value() && *ttl == 2592000
+        })
         .returning(|_, _, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = SigninCommand::new(email, password);
@@ -85,7 +89,7 @@ async fn test_signin_invalid_credentials() {
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
-        mock_session_repository
+        mock_session_repository,
     );
 
     let command = SigninCommand::new(email, password);

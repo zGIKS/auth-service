@@ -1,2 +1,2 @@
-pub mod identity;
 pub mod authentication;
+pub mod identity;

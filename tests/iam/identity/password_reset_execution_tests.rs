@@ -1,17 +1,16 @@
 /// Tests for ResetPasswordCommand execution
 use super::test_mocks::*;
 use auth_service::iam::identity::application::command_services::identity_command_service_impl::IdentityCommandServiceImpl;
+use auth_service::iam::identity::domain::error::DomainError;
+use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::model::commands::reset_password_command::ResetPasswordCommand;
+use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 use auth_service::iam::identity::domain::model::value_objects::{
     auth_provider::AuthProvider, password::Password,
 };
-use auth_service::iam::identity::domain::model::aggregates::identity::Identity;
 use auth_service::iam::identity::domain::services::identity_command_service::IdentityCommandService;
-use auth_service::iam::identity::domain::error::DomainError;
 use auth_service::shared::domain::model::entities::auditable_model::AuditableModel;
-use auth_service::iam::identity::domain::model::value_objects::identity_id::IdentityId;
 use std::time::Duration;
-use uuid::Uuid;
 
 #[tokio::test]
 async fn test_reset_password_success() {
@@ -85,7 +84,7 @@ async fn test_reset_password_success() {
     let new_password = Password::new("NewSecurePass123!".to_string()).unwrap();
     let command = ResetPasswordCommand::new(test_token.to_string(), new_password);
     let result = service.reset_password(command).await;
-    
+
     assert!(result.is_ok());
 }
 
@@ -120,7 +119,7 @@ async fn test_reset_password_invalid_token() {
     let new_password = Password::new("NewSecurePass123!".to_string()).unwrap();
     let command = ResetPasswordCommand::new(invalid_token.to_string(), new_password);
     let result = service.reset_password(command).await;
-    
+
     match result {
         Err(DomainError::InvalidToken) => assert!(true),
         _ => panic!("Expected InvalidToken error, got {:?}", result),
@@ -195,7 +194,7 @@ async fn test_reset_password_hashes_new_password() {
     let new_password = Password::new(plain_password.to_string()).unwrap();
     let command = ResetPasswordCommand::new(test_token.to_string(), new_password);
     let result = service.reset_password(command).await;
-    
+
     assert!(result.is_ok());
 }
 
@@ -266,7 +265,7 @@ async fn test_reset_password_deletes_token_after_use() {
     let new_password = Password::new("NewPassword123!".to_string()).unwrap();
     let command = ResetPasswordCommand::new(test_token_clone, new_password);
     let result = service.reset_password(command).await;
-    
+
     assert!(result.is_ok());
 }
 
@@ -308,10 +307,13 @@ async fn test_reset_password_user_not_found_for_valid_token() {
     let new_password = Password::new("NewPassword123!".to_string()).unwrap();
     let command = ResetPasswordCommand::new(test_token.to_string(), new_password);
     let result = service.reset_password(command).await;
-    
+
     match result {
         Err(DomainError::InternalError(msg)) if msg.contains("Identity not found") => assert!(true),
-        _ => panic!("Expected InternalError for missing identity, got {:?}", result),
+        _ => panic!(
+            "Expected InternalError for missing identity, got {:?}",
+            result
+        ),
     }
 }
 
@@ -319,10 +321,10 @@ async fn test_reset_password_user_not_found_for_valid_token() {
 async fn test_reset_password_validates_password_requirements() {
     // This test verifies that Password value object validation happens
     // before the service is even called
-    
+
     let weak_password = "weak";
     let result = Password::new(weak_password.to_string());
-    
+
     // Password validation should fail
     assert!(result.is_err());
 }
@@ -389,6 +391,6 @@ async fn test_reset_password_accepts_strong_password() {
     let strong_password = Password::new("V3ry$tr0ng&C0mpl3xP@ssw0rd!".to_string()).unwrap();
     let command = ResetPasswordCommand::new(test_token.to_string(), strong_password);
     let result = service.reset_password(command).await;
-    
+
     assert!(result.is_ok());
 }
