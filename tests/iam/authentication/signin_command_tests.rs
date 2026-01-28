@@ -55,21 +55,20 @@ async fn test_signin_success() {
         .times(1)
         .returning(|_, _| Ok(()));
 
-    // 3b. Refresh token is saved
+    // 4. Refresh token is saved
     let refresh_token_clone_2 = refresh_token.clone();
     mock_session_repository
         .expect_save_refresh_token()
-        .withf(move |uid: &Uuid, rt: &RefreshToken, ttl: &u64| {
-            *uid == user_id && rt.value() == refresh_token_clone_2.value() && *ttl == 2592000
-        })
+        .withf(move |uid: &Uuid, rt: &RefreshToken, ttl: &u64| *uid == user_id && rt == &refresh_token_clone_2 && *ttl == 604800)
         .times(1)
         .returning(|_, _, _| Ok(()));
 
-    let service = AuthenticationCommandServiceImpl::new(
-        mock_identity_facade,
-        mock_token_service,
-        mock_session_repository,
-    );
+        let service = AuthenticationCommandServiceImpl::new(
+            mock_identity_facade,
+            mock_token_service,
+            mock_session_repository,
+            604800,
+        );
 
     let command = SigninCommand::new(email, password);
     let result = service.signin(command).await;
@@ -105,6 +104,7 @@ async fn test_signin_invalid_credentials() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command = SigninCommand::new(email, password);
@@ -133,6 +133,7 @@ async fn test_signin_identity_facade_error() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command = SigninCommand::new(email, password);
@@ -169,6 +170,7 @@ async fn test_signin_token_generation_error() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command = SigninCommand::new(email, password);
@@ -219,6 +221,7 @@ async fn test_signin_session_creation_error() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command = SigninCommand::new(email, password);
@@ -276,6 +279,7 @@ async fn test_signin_with_different_user_ids() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command_1 = SigninCommand::new("user1@example.com".to_string(), "pass1".to_string());

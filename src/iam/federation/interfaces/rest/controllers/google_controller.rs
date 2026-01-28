@@ -63,8 +63,13 @@ pub async fn google_callback(
     let session_repo =
         RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
 
-    let service =
-        GoogleFederationService::new(identity_repo, token_service, session_repo, oauth_client);
+    let service = GoogleFederationService::new(
+        identity_repo,
+        token_service,
+        session_repo,
+        oauth_client,
+        state.refresh_token_duration_seconds,
+    );
 
     match service.authenticate(query.code.clone()).await {
         Ok((token, refresh_token)) => {

@@ -61,6 +61,7 @@ async fn test_signin_success() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command = SigninCommand::new(email, password);
@@ -90,6 +91,7 @@ async fn test_signin_invalid_credentials() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command = SigninCommand::new(email, password);

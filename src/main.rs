@@ -16,9 +16,9 @@ async fn main() {
     dotenv().ok();
 
     let port: u16 = std::env::var("PORT")
-        .unwrap_or_else(|_| "3000".to_string())
+        .expect("PORT must be set")
         .parse()
-        .unwrap_or(3000);
+        .expect("PORT must be a valid number");
 
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let db = Database::connect(&database_url)
@@ -29,19 +29,24 @@ async fn main() {
 
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     let session_duration_seconds: u64 = std::env::var("SESSION_DURATION_SECONDS")
-        .unwrap_or_else(|_| "3600".to_string())
+        .expect("SESSION_DURATION_SECONDS must be set")
         .parse()
-        .unwrap_or(3600);
+        .expect("SESSION_DURATION_SECONDS must be a number");
+
+    let refresh_token_duration_seconds: u64 = std::env::var("REFRESH_TOKEN_DURATION_SECONDS")
+        .expect("REFRESH_TOKEN_DURATION_SECONDS must be set")
+        .parse()
+        .expect("REFRESH_TOKEN_DURATION_SECONDS must be a number");
 
     let pending_registration_ttl_seconds: u64 = std::env::var("PENDING_REGISTRATION_TTL_SECONDS")
-        .unwrap_or_else(|_| "900".to_string())
+        .expect("PENDING_REGISTRATION_TTL_SECONDS must be set")
         .parse()
-        .unwrap_or(900);
+        .expect("PENDING_REGISTRATION_TTL_SECONDS must be a number");
 
     let password_reset_ttl_seconds: u64 = std::env::var("PASSWORD_RESET_TTL_SECONDS")
-        .unwrap_or_else(|_| "900".to_string())
+        .expect("PASSWORD_RESET_TTL_SECONDS must be set")
         .parse()
-        .unwrap_or(900);
+        .expect("PASSWORD_RESET_TTL_SECONDS must be a number");
 
     let frontend_url = std::env::var("FRONTEND_URL").ok();
 
@@ -69,6 +74,7 @@ async fn main() {
         redis: redis_client,
         jwt_secret,
         session_duration_seconds,
+        refresh_token_duration_seconds,
         pending_registration_ttl_seconds,
         password_reset_ttl_seconds,
         frontend_url,

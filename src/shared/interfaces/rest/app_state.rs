@@ -7,6 +7,7 @@ pub struct AppState {
     pub redis: redis::Client,
     pub jwt_secret: String,
     pub session_duration_seconds: u64,
+    pub refresh_token_duration_seconds: u64,
     pub pending_registration_ttl_seconds: u64,
     pub password_reset_ttl_seconds: u64,
     pub frontend_url: Option<String>,

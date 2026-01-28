@@ -22,6 +22,7 @@ where
     identity_facade: F,
     token_service: T,
     session_repository: S,
+    refresh_token_duration_seconds: u64,
 }
 
 impl<F, T, S> AuthenticationCommandServiceImpl<F, T, S>
@@ -30,11 +31,17 @@ where
     T: TokenService,
     S: SessionRepository,
 {
-    pub fn new(identity_facade: F, token_service: T, session_repository: S) -> Self {
+    pub fn new(
+        identity_facade: F,
+        token_service: T,
+        session_repository: S,
+        refresh_token_duration_seconds: u64,
+    ) -> Self {
         Self {
             identity_facade,
             token_service,
             session_repository,
+            refresh_token_duration_seconds,
         }
     }
 }
@@ -64,9 +71,12 @@ where
                 // Pass JTI to create_session
                 self.session_repository.create_session(uid, &jti).await?;
 
-                // 30 days = 2592000 seconds. TODO: Configurable
                 self.session_repository
-                    .save_refresh_token(uid, &refresh_token, 2592000)
+                    .save_refresh_token(
+                        uid,
+                        &refresh_token,
+                        self.refresh_token_duration_seconds,
+                    )
                     .await?;
 
                 Ok((token, refresh_token))
@@ -101,7 +111,11 @@ where
             .create_session(user_id, &new_jti)
             .await?;
         self.session_repository
-            .save_refresh_token(user_id, &new_refresh_token, 2592000)
+            .save_refresh_token(
+                user_id,
+                &new_refresh_token,
+                self.refresh_token_duration_seconds,
+            )
             .await?;
 
         Ok((new_token, new_refresh_token))
@@ -113,9 +127,18 @@ where
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let refresh_token = RefreshToken::new(command.refresh_token);
         
+        let user_id = self
+            .session_repository
+            .get_user_by_refresh_token(&refresh_token)
+            .await?;
+
         self.session_repository
             .delete_refresh_token(&refresh_token)
             .await?;
+
+        if let Some(uid) = user_id {
+            self.session_repository.delete_session(uid).await?;
+        }
 
         Ok(())
     }
