@@ -23,6 +23,8 @@ async fn test_request_password_reset_success() {
 
     let test_email = Email::new("user@gmail.com".to_string()).unwrap();
 
+    unsafe { std::env::set_var("FRONTEND_URL", "http://localhost:3000") };
+
     // User exists
     mock_repo
         .expect_find_by_email()
@@ -65,6 +67,8 @@ async fn test_request_password_reset_success() {
     let result = service.request_password_reset(command).await;
 
     assert!(result.is_ok());
+
+    unsafe { std::env::remove_var("FRONTEND_URL") };
 }
 
 #[tokio::test]
@@ -116,6 +120,8 @@ async fn test_request_password_reset_generates_secure_token() {
 
     let test_email = Email::new("tokentest@gmail.com".to_string()).unwrap();
 
+    unsafe { std::env::set_var("FRONTEND_URL", "http://localhost:3000") };
+
     mock_repo
         .expect_find_by_email()
         .times(1)
@@ -159,6 +165,8 @@ async fn test_request_password_reset_generates_secure_token() {
     let result = service.request_password_reset(command).await;
 
     assert!(result.is_ok());
+
+    unsafe { std::env::remove_var("FRONTEND_URL") };
 }
 
 #[tokio::test]
@@ -172,6 +180,8 @@ async fn test_request_password_reset_uses_correct_ttl() {
     let reset_ttl = Duration::from_secs(600); // 10 minutes
 
     let test_email = Email::new("ttltest@gmail.com".to_string()).unwrap();
+
+    unsafe { std::env::set_var("FRONTEND_URL", "http://localhost:3000") };
 
     mock_repo
         .expect_find_by_email()
@@ -213,10 +223,14 @@ async fn test_request_password_reset_uses_correct_ttl() {
     let result = service.request_password_reset(command).await;
 
     assert!(result.is_ok());
+
+    unsafe { std::env::remove_var("FRONTEND_URL") };
 }
 
 #[tokio::test]
 async fn test_request_password_reset_email_contains_frontend_url() {
+    unsafe { std::env::set_var("FRONTEND_URL", "http://localhost:3000") };
+
     let mut mock_repo = MockIdentityRepository::new();
     let mock_pending_repo = MockPendingIdentityRepository::new();
     let mut mock_password_reset_repo = MockPasswordResetTokenRepository::new();
@@ -253,7 +267,7 @@ async fn test_request_password_reset_email_contains_frontend_url() {
         .withf(|_, link| {
             // Should contain frontend URL and token parameter
             link.contains("reset-password?token=")
-                && (link.starts_with("http://localhost:5173") || link.starts_with("http://"))
+                && (link.starts_with("http://localhost:3000") || link.starts_with("http://"))
         })
         .returning(|_, _| Ok(()));
 
@@ -271,4 +285,6 @@ async fn test_request_password_reset_email_contains_frontend_url() {
     let result = service.request_password_reset(command).await;
 
     assert!(result.is_ok());
+
+    unsafe { std::env::remove_var("FRONTEND_URL") };
 }
