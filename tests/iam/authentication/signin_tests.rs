@@ -61,10 +61,10 @@ async fn test_signin_success() {
     // Lockout mocks
     mock_account_lockout
         .expect_check_locked()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
     mock_account_lockout
         .expect_reset_failure()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
@@ -74,7 +74,7 @@ async fn test_signin_success() {
         2592000,
     );
 
-    let command = SigninCommand::new(email, password);
+    let command = SigninCommand::new(email, password, None);
     let result = service.signin(command).await;
 
     assert!(result.is_ok());
@@ -107,10 +107,10 @@ async fn test_signin_invalid_credentials() {
     // Lockout mocks
     mock_account_lockout
         .expect_check_locked()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
     mock_account_lockout
         .expect_register_failure()
-        .returning(|_, _, _| Ok(false));
+        .returning(|_, _, _, _| Ok(false));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
@@ -120,7 +120,7 @@ async fn test_signin_invalid_credentials() {
         2592000,
     );
 
-    let command = SigninCommand::new(email, password);
+    let command = SigninCommand::new(email, password, None);
     let result = service.signin(command).await;
 
     assert!(result.is_err());

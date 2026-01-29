@@ -64,8 +64,8 @@ where
         &self,
         command: SigninCommand,
     ) -> Result<(Token, RefreshToken), Box<dyn Error + Send + Sync>> {
-        // Check if the account is locked
-        if let Err(e) = self.account_lockout_service.check_locked(&command.email).await {
+        // Check if the account is locked (globally or for this IP)
+        if let Err(e) = self.account_lockout_service.check_locked(&command.email, command.ip_address.as_deref()).await {
             return Err(Box::new(e));
         }
 
@@ -78,7 +78,7 @@ where
         match user_id {
             Some(uid) => {
                 // Reset failure counter on successful login
-                self.account_lockout_service.reset_failure(&email).await?;
+                self.account_lockout_service.reset_failure(&email, command.ip_address.as_deref()).await?;
 
                 // Generate token and get its JTI
                 let (token, jti) = self.token_service.generate_token(uid)?;
@@ -100,7 +100,7 @@ where
             None => {
                 // Check if user exists before registering failure to prevent DoS on non-existent accounts
                 if self.identity_facade.user_exists(email.clone()).await? {
-                    self.account_lockout_service.register_failure(&email, 5, 300).await?;
+                    self.account_lockout_service.register_failure(&email, command.ip_address.as_deref(), 5, 300).await?;
                 }
                 Err("Invalid credentials".into())
             },

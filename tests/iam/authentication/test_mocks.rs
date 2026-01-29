@@ -127,23 +127,23 @@ impl SessionRepository for MockSessionRepositoryShim {
 // Mock AccountLockoutVerifier
 mock! {
     pub AccountLockoutVerifierShim {
-        pub fn check_locked(&self, identity: String) -> Result<(), LockoutError>;
-        pub fn register_failure(&self, identity: String, threshold: u64, lock_duration_sec: u64) -> Result<bool, LockoutError>;
-        pub fn reset_failure(&self, identity: String) -> Result<(), LockoutError>;
+        pub fn check_locked(&self, identity: String, ip: Option<String>) -> Result<(), LockoutError>;
+        pub fn register_failure(&self, identity: String, ip: Option<String>, threshold: u64, lock_duration_sec: u64) -> Result<bool, LockoutError>;
+        pub fn reset_failure(&self, identity: String, ip: Option<String>) -> Result<(), LockoutError>;
     }
 }
 
 #[async_trait::async_trait]
 impl AccountLockoutVerifier for MockAccountLockoutVerifierShim {
-    async fn check_locked(&self, identity: &str) -> Result<(), LockoutError> {
-        self.check_locked(identity.to_string())
+    async fn check_locked(&self, identity: &str, ip: Option<&str>) -> Result<(), LockoutError> {
+        self.check_locked(identity.to_string(), ip.map(|s| s.to_string()))
     }
 
-    async fn register_failure(&self, identity: &str, threshold: u64, lock_duration_sec: u64) -> Result<bool, LockoutError> {
-        self.register_failure(identity.to_string(), threshold, lock_duration_sec)
+    async fn register_failure(&self, identity: &str, ip: Option<&str>, threshold: u64, lock_duration_sec: u64) -> Result<bool, LockoutError> {
+        self.register_failure(identity.to_string(), ip.map(|s| s.to_string()), threshold, lock_duration_sec)
     }
 
-    async fn reset_failure(&self, identity: &str) -> Result<(), LockoutError> {
-        self.reset_failure(identity.to_string())
+    async fn reset_failure(&self, identity: &str, ip: Option<&str>) -> Result<(), LockoutError> {
+        self.reset_failure(identity.to_string(), ip.map(|s| s.to_string()))
     }
 }

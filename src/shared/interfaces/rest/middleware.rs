@@ -49,7 +49,12 @@ pub async fn rate_limit_middleware(
                  ip_str
             }
         },
-        None => x_forwarded.unwrap_or_else(|| "unknown".to_string()),
+        None => {
+            // Fallback if ConnectInfo is missing. 
+            // Do NOT trust X-Forwarded-For blindly as it can be spoofed.
+            // Since we can't verify the source, we treat it as unknown.
+            "unknown".to_string()
+        },
     };
 
     let path = req.uri().path().to_string();

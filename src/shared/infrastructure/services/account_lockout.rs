@@ -3,9 +3,9 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait AccountLockoutVerifier: Send + Sync {
-    async fn check_locked(&self, identity: &str) -> Result<(), LockoutError>;
-    async fn register_failure(&self, identity: &str, threshold: u64, lock_duration_sec: u64) -> Result<bool, LockoutError>;
-    async fn reset_failure(&self, identity: &str) -> Result<(), LockoutError>;
+    async fn check_locked(&self, identity: &str, ip: Option<&str>) -> Result<(), LockoutError>;
+    async fn register_failure(&self, identity: &str, ip: Option<&str>, threshold: u64, lock_duration_sec: u64) -> Result<bool, LockoutError>;
+    async fn reset_failure(&self, identity: &str, ip: Option<&str>) -> Result<(), LockoutError>;
 }
 
 #[derive(Clone)]
@@ -24,41 +24,60 @@ pub enum LockoutError {
 #[async_trait]
 impl AccountLockoutVerifier for AccountLockoutService {
     /// Checks if the identity is locked out.
-    async fn check_locked(&self, identity: &str) -> Result<(), LockoutError> {
+    /// If IP is provided, checks if that specific IP is locked for this identity.
+    /// Also checks global identity lock (if any).
+    async fn check_locked(&self, identity: &str, ip: Option<&str>) -> Result<(), LockoutError> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
-        let lock_key = format!("lockout:{}", identity);
+        
+        // 1. Check Global Lock (lockout:email)
+        let global_lock_key = format!("lockout:{}", identity);
+        let global_ttl: i64 = conn.ttl(&global_lock_key).await?;
+        if global_ttl > 0 {
+            return Err(LockoutError::Locked(global_ttl as u64));
+        }
 
-        let ttl: i64 = conn.ttl(&lock_key).await?;
-
-        if ttl > 0 {
-            return Err(LockoutError::Locked(ttl as u64));
+        // 2. Check IP-specific Lock (lockout:email:ip)
+        if let Some(ip_addr) = ip {
+            let ip_lock_key = format!("lockout:{}:{}", identity, ip_addr);
+            let ip_ttl: i64 = conn.ttl(&ip_lock_key).await?;
+            if ip_ttl > 0 {
+                return Err(LockoutError::Locked(ip_ttl as u64));
+            }
         }
 
         Ok(())
     }
 
     /// Registers a failed attempt. 
-    /// If attempts exceed threshold, locks the account.
-    /// Returns true if the account is now locked.
-    async fn register_failure(&self, identity: &str, threshold: u64, lock_duration_sec: u64) -> Result<bool, LockoutError> {
+    /// If IP is provided, registers failure against `identity:ip`.
+    /// Otherwise registers against `identity` globally.
+    /// If attempts exceed threshold, locks the corresponding scope.
+    /// Returns true if locked.
+    async fn register_failure(&self, identity: &str, ip: Option<&str>, threshold: u64, lock_duration_sec: u64) -> Result<bool, LockoutError> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
         
-        // This key tracks the number of failures
-        let attempts_key = format!("login_failures:{}", identity);
-        // This key indicates the lockout status
-        let lock_key = format!("lockout:{}", identity);
+        let (attempts_key, lock_key) = if let Some(ip_addr) = ip {
+            (
+                format!("login_failures:{}:{}", identity, ip_addr),
+                format!("lockout:{}:{}", identity, ip_addr)
+            )
+        } else {
+            (
+                format!("login_failures:{}", identity),
+                format!("lockout:{}", identity)
+            )
+        };
 
         // Increment attempts using INCR
         let attempts: u64 = conn.incr(&attempts_key, 1).await?;
         
         // Set expiry on the attempts key (sliding window for failures check)
-        // e.g., if you fail 5 times in 10 minutes.
         if attempts == 1 {
             let _: () = conn.expire(&attempts_key, 600).await?; // 10 minutes failure window
         }
 
         if attempts >= threshold {
-            // Lock the account
+            // Lock the account (scoped to IP if provided)
             let _: () = conn.set_ex(&lock_key, "locked", lock_duration_sec).await?;
             // Reset attempts so strict lockout period applies
             let _: () = conn.del(&attempts_key).await?;
@@ -69,10 +88,18 @@ impl AccountLockoutVerifier for AccountLockoutService {
     }
 
     /// Resets the failure counter (e.g., on successful login).
-    async fn reset_failure(&self, identity: &str) -> Result<(), LockoutError> {
+    /// Clears both global and IP-specific counters for this identity to be safe.
+    async fn reset_failure(&self, identity: &str, ip: Option<&str>) -> Result<(), LockoutError> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
-        let attempts_key = format!("login_failures:{}", identity);
-        let _: () = conn.del(&attempts_key).await?;
+        
+        let global_attempts = format!("login_failures:{}", identity);
+        let _: () = conn.del(&global_attempts).await?;
+
+        if let Some(ip_addr) = ip {
+            let ip_attempts = format!("login_failures:{}:{}", identity, ip_addr);
+            let _: () = conn.del(&ip_attempts).await?;
+        }
+        
         Ok(())
     }
 }

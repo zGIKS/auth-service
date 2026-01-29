@@ -68,10 +68,10 @@ async fn test_signin_success() {
 
     mock_account_lockout
         .expect_check_locked()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
     mock_account_lockout
         .expect_reset_failure()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
@@ -81,7 +81,7 @@ async fn test_signin_success() {
         604800,
     );
 
-    let command = SigninCommand::new(email, password);
+    let command = SigninCommand::new(email, password, None);
     let result = service.signin(command).await;
 
     assert!(result.is_ok());
@@ -119,10 +119,10 @@ async fn test_signin_invalid_credentials() {
 
     mock_account_lockout
         .expect_check_locked()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
     mock_account_lockout
         .expect_register_failure()
-        .returning(|_, _, _| Ok(false));
+        .returning(|_, _, _, _| Ok(false));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
@@ -132,7 +132,7 @@ async fn test_signin_invalid_credentials() {
         2592000,
     );
 
-    let command = SigninCommand::new(email, password);
+    let command = SigninCommand::new(email, password, None);
     let result = service.signin(command).await;
 
     assert!(result.is_err());
@@ -157,7 +157,7 @@ async fn test_signin_identity_facade_error() {
 
     mock_account_lockout
         .expect_check_locked()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
     // It propagates error, so register/reset might not be called or handled differently.
     // Based on implementation: verify -> Err -> returns Err immediately. No register/reset.
     
@@ -169,7 +169,7 @@ async fn test_signin_identity_facade_error() {
         2592000,
     );
 
-    let command = SigninCommand::new(email, password);
+    let command = SigninCommand::new(email, password, None);
     let result = service.signin(command).await;
 
     assert!(result.is_err());
@@ -202,10 +202,10 @@ async fn test_signin_token_generation_error() {
 
     mock_account_lockout
         .expect_check_locked()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
     mock_account_lockout
         .expect_reset_failure()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
@@ -215,7 +215,7 @@ async fn test_signin_token_generation_error() {
         2592000,
     );
 
-    let command = SigninCommand::new(email, password);
+    let command = SigninCommand::new(email, password, None);
     let result = service.signin(command).await;
 
     assert!(result.is_err());
@@ -262,10 +262,10 @@ async fn test_signin_session_creation_error() {
 
     mock_account_lockout
         .expect_check_locked()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
     mock_account_lockout
         .expect_reset_failure()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
@@ -275,7 +275,7 @@ async fn test_signin_session_creation_error() {
         2592000,
     );
 
-    let command = SigninCommand::new(email, password);
+    let command = SigninCommand::new(email, password, None);
     let result = service.signin(command).await;
 
     assert!(result.is_err());
@@ -329,10 +329,10 @@ async fn test_signin_with_different_user_ids() {
 
     mock_account_lockout
         .expect_check_locked()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
     mock_account_lockout
         .expect_reset_failure()
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
@@ -342,7 +342,7 @@ async fn test_signin_with_different_user_ids() {
         2592000,
     );
 
-    let command_1 = SigninCommand::new("user1@example.com".to_string(), "pass1".to_string());
+    let command_1 = SigninCommand::new("user1@example.com".to_string(), "pass1".to_string(), None);
     let result_1 = service.signin(command_1).await;
 
     assert!(result_1.is_ok());
@@ -356,10 +356,10 @@ async fn test_signin_command_validation() {
     let invalid_email = "not-an-email".to_string();
     let valid_password = "password123".to_string();
 
-    let valid_command = SigninCommand::new(valid_email, valid_password.clone());
+    let valid_command = SigninCommand::new(valid_email, valid_password.clone(), None);
     assert!(valid_command.validate().is_ok());
 
-    let invalid_command = SigninCommand::new(invalid_email, valid_password);
+    let invalid_command = SigninCommand::new(invalid_email, valid_password, None);
     assert!(invalid_command.validate().is_err());
 }
 
@@ -370,9 +370,9 @@ async fn test_signin_password_length_validation() {
     let short_password = "12345".to_string(); // Less than 6 chars
     let valid_password = "123456".to_string(); // Exactly 6 chars
 
-    let invalid_command = SigninCommand::new(email.clone(), short_password);
+    let invalid_command = SigninCommand::new(email.clone(), short_password, None);
     assert!(invalid_command.validate().is_err());
 
-    let valid_command = SigninCommand::new(email, valid_password);
+    let valid_command = SigninCommand::new(email, valid_password, None);
     assert!(valid_command.validate().is_ok());
 }

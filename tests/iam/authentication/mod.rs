@@ -12,3 +12,4 @@ mod token_tests;
 // Legacy test files (keep for backwards compatibility)
 pub mod infrastructure_tests;
 pub mod signin_tests;
+pub mod lockout_tests;

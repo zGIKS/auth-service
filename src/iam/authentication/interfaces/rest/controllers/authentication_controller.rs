@@ -30,10 +30,12 @@ use crate::shared::interfaces::rest::error_response::ErrorResponse;
 use crate::shared::infrastructure::services::account_lockout::AccountLockoutService;
 
 use axum::{
-    extract::{Json, Query, State},
+    extract::{Json, Query, State, ConnectInfo},
     http::StatusCode,
     response::IntoResponse,
+    Extension,
 };
+use std::net::SocketAddr;
 use validator::Validate;
 
 #[utoipa::path(
@@ -49,11 +51,22 @@ use validator::Validate;
 )]
 pub async fn signin(
     State(state): State<AppState>,
+    // Attempt to extract ConnectInfo if available
+    Extension(connect_info): Extension<Option<ConnectInfo<SocketAddr>>>,
+    // We can also check headers from the request if we used Request extractor, 
+    // but here we are using Json extractor which consumes body. 
+    // To get headers + body, we'd need to change signature, but let's stick to ConnectInfo for now 
+    // or rely on what Axum provides.
+    // Actually, to get headers we need `HeaderMap`.
+    // Let's simplify and try to get IP from ConnectInfo extension which we know is set in main.rs
     Json(resource): Json<SigninResource>,
 ) -> impl IntoResponse {
     if let Err(e) = resource.validate() {
         return (StatusCode::BAD_REQUEST, e.to_string()).into_response();
     }
+
+    // Extract IP
+    let ip_address = connect_info.map(|ci| ci.0.ip().to_string());
 
     let identity_repo = IdentityRepositoryImpl::new(state.db.clone());
     let identity_facade = IdentityFacadeImpl::new(identity_repo);
@@ -71,7 +84,7 @@ pub async fn signin(
         state.refresh_token_duration_seconds,
     );
 
-    let command = SigninCommand::new(resource.email, resource.password);
+    let command = SigninCommand::new(resource.email, resource.password, ip_address);
 
     match service.signin(command).await {
         Ok((token, refresh_token)) => (
