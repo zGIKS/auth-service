@@ -57,15 +57,17 @@ impl EmailSenderService for SmtpEmailSender {
         body: &Body,
     ) -> Result<(), MessagingError> {
         if !self.circuit_breaker.is_call_permitted().await {
-            return Err(MessagingError::SendError("Circuit breaker open".to_string()));
+            return Err(MessagingError::SendError(
+                "Circuit breaker open".to_string(),
+            ));
         }
 
         let result = async {
             let email = Message::builder()
                 .from(
-                    self.from
-                        .parse()
-                        .map_err(|_| MessagingError::ConfigError("Invalid FROM address".to_string()))?,
+                    self.from.parse().map_err(|_| {
+                        MessagingError::ConfigError("Invalid FROM address".to_string())
+                    })?,
                 )
                 .to(to
                     .value()

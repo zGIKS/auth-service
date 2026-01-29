@@ -1,6 +1,8 @@
 use crate::iam::authentication::{
     application::{
-        command_services::authentication_command_service_impl::AuthenticationCommandServiceImpl,
+        command_services::authentication_command_service_impl::{
+            AuthenticationCommandServiceImpl, LockoutPolicy,
+        },
         query_services::authentication_query_service_impl::AuthenticationQueryServiceImpl,
     },
     domain::model::commands::{
@@ -25,15 +27,15 @@ use crate::iam::identity::{
     application::acl::identity_facade_impl::IdentityFacadeImpl,
     infrastructure::persistence::postgres::repositories::identity_repository_impl::IdentityRepositoryImpl,
 };
+use crate::shared::infrastructure::services::account_lockout::AccountLockoutService;
 use crate::shared::interfaces::rest::app_state::AppState;
 use crate::shared::interfaces::rest::error_response::ErrorResponse;
-use crate::shared::infrastructure::services::account_lockout::AccountLockoutService;
 
 use axum::{
-    extract::{Json, Query, State, ConnectInfo},
+    Extension,
+    extract::{ConnectInfo, Json, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Extension,
 };
 use std::net::SocketAddr;
 use validator::Validate;
@@ -53,9 +55,9 @@ pub async fn signin(
     State(state): State<AppState>,
     // Attempt to extract ConnectInfo if available
     Extension(connect_info): Extension<Option<ConnectInfo<SocketAddr>>>,
-    // We can also check headers from the request if we used Request extractor, 
-    // but here we are using Json extractor which consumes body. 
-    // To get headers + body, we'd need to change signature, but let's stick to ConnectInfo for now 
+    // We can also check headers from the request if we used Request extractor,
+    // but here we are using Json extractor which consumes body.
+    // To get headers + body, we'd need to change signature, but let's stick to ConnectInfo for now
     // or rely on what Axum provides.
     // Actually, to get headers we need `HeaderMap`.
     // Let's simplify and try to get IP from ConnectInfo extension which we know is set in main.rs
@@ -82,7 +84,11 @@ pub async fn signin(
         session_repo,
         lockout_service,
         state.refresh_token_duration_seconds,
-    );
+    )
+    .with_lockout_policy(LockoutPolicy::new(
+        state.lockout_threshold,
+        state.lockout_duration_seconds,
+    ));
 
     let command = SigninCommand::new(resource.email, resource.password, ip_address);
 
@@ -137,7 +143,11 @@ pub async fn logout(
         session_repo,
         lockout_service,
         state.refresh_token_duration_seconds,
-    );
+    )
+    .with_lockout_policy(LockoutPolicy::new(
+        state.lockout_threshold,
+        state.lockout_duration_seconds,
+    ));
 
     let command = LogoutCommand::new(resource.refresh_token);
 
@@ -185,7 +195,11 @@ pub async fn refresh_token(
         session_repo,
         lockout_service,
         state.refresh_token_duration_seconds,
-    );
+    )
+    .with_lockout_policy(LockoutPolicy::new(
+        state.lockout_threshold,
+        state.lockout_duration_seconds,
+    ));
 
     let command = RefreshTokenCommand::new(resource.refresh_token);
 

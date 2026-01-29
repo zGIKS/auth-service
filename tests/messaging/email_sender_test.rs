@@ -16,7 +16,8 @@ async fn test_send_email_integration() {
         return;
     }
 
-    let sender = SmtpEmailSender::new(create_circuit_breaker()).expect("Failed to create SMTP sender");
+    let sender =
+        SmtpEmailSender::new(create_circuit_breaker()).expect("Failed to create SMTP sender");
 
     // Replace with a valid email to test, or use the configured user email
     let to_addr = std::env::var("SMTP_USERNAME").unwrap_or_else(|_| "test@example.com".to_string());

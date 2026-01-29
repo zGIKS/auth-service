@@ -1,5 +1,5 @@
-use async_trait::async_trait;
 use crate::iam::federation::domain::error::FederationError;
+use async_trait::async_trait;
 
 #[derive(Debug, Clone)]
 pub struct ExchangeTokens {

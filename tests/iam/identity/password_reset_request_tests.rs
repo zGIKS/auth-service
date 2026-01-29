@@ -71,7 +71,6 @@ async fn test_request_password_reset_success() {
     // unsafe { std::env::remove_var("FRONTEND_URL") };
 }
 
-
 #[tokio::test]
 async fn test_request_password_reset_non_existent_email_returns_ok() {
     let mut mock_repo = MockIdentityRepository::new();
@@ -289,4 +288,3 @@ async fn test_request_password_reset_email_contains_frontend_url() {
 
     // unsafe { std::env::remove_var("FRONTEND_URL") };
 }
-

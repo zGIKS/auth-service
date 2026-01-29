@@ -71,8 +71,7 @@ impl IdentityRepository for IdentityRepositoryImpl {
                 Ok(Some(DomainIdentity::new(
                     IdentityId::from_uuid(m.id),
                     email,
-                    Password::new(m.password_hash)
-                        .map_err(Box::<dyn Error + Send + Sync>::from)?,
+                    Password::new(m.password_hash).map_err(Box::<dyn Error + Send + Sync>::from)?,
                     provider,
                     audit,
                 )))

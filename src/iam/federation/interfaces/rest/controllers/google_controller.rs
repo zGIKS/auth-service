@@ -1,11 +1,11 @@
 use axum::{
-    extract::{Query, State, Json},
+    extract::{Json, Query, State},
     http::StatusCode,
     response::{IntoResponse, Redirect},
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
-use validator::Validate;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::iam::authentication::{
     infrastructure::{
@@ -37,7 +37,10 @@ use crate::shared::interfaces::rest::{app_state::AppState, error_response::Error
     tag = "auth",
     responses((status = 302, description = "Redirect to Google OAuth"))
 )]
-pub async fn redirect_to_google(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
+pub async fn redirect_to_google(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> impl IntoResponse {
     let csrf_state = Uuid::new_v4().to_string();
     let scope = urlencoding::encode("openid email profile");
     let redirect_uri = urlencoding::encode(&state.google_redirect_uri);
@@ -78,7 +81,7 @@ pub async fn google_callback(
         None => {
             return ErrorResponse::new("Frontend URL not configured")
                 .with_code(StatusCode::INTERNAL_SERVER_ERROR.as_u16())
-                .into_response()
+                .into_response();
         }
     };
 
@@ -90,7 +93,11 @@ pub async fn google_callback(
             frontend_url,
             urlencoding::encode("Invalid CSRF state")
         );
-        return (jar.remove(Cookie::from("oauth_state")), Redirect::to(&redirect_url)).into_response();
+        return (
+            jar.remove(Cookie::from("oauth_state")),
+            Redirect::to(&redirect_url),
+        )
+            .into_response();
     }
 
     // Clean up cookie
@@ -152,12 +159,14 @@ pub async fn google_callback(
                 FederationError::InvalidAuthorizationCode => "Invalid authorization code",
                 FederationError::InvalidEmail => "Invalid email returned by Google",
                 FederationError::EmailNotVerified => "Google email is not verified",
-                FederationError::ProviderMismatch => "Email already registered with a different provider",
+                FederationError::ProviderMismatch => {
+                    "Email already registered with a different provider"
+                }
                 FederationError::TokenExchange(_) => "Failed to exchange code with Google",
                 FederationError::UserInfo(_) => "Failed to retrieve Google user info",
                 FederationError::Internal(_) => "Internal error",
             };
-            
+
             let redirect_url = format!(
                 "{}/login?error=google_auth_failed&message={}",
                 frontend_url,

@@ -1,6 +1,6 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum State {
@@ -41,7 +41,7 @@ impl AppCircuitBreaker {
     /// Returns true if Closed, or if Open/HalfOpen logic allows a probe.
     pub async fn is_call_permitted(&self) -> bool {
         let mut inner = self.inner.lock().await;
-        
+
         match inner.state {
             State::Closed => true,
             State::Open => {
@@ -55,7 +55,7 @@ impl AppCircuitBreaker {
                 false
             }
             State::HalfOpen => {
-                // Only one probe allowed. If we are already in HalfOpen, 
+                // Only one probe allowed. If we are already in HalfOpen,
                 // it means a probe is in flight. Reject others.
                 false
             }
@@ -64,7 +64,7 @@ impl AppCircuitBreaker {
 
     pub async fn on_success(&self) {
         let mut inner = self.inner.lock().await;
-        
+
         if inner.state == State::HalfOpen {
             inner.state = State::Closed;
             inner.failures.clear(); // Reset failure history on successful probe
@@ -74,14 +74,14 @@ impl AppCircuitBreaker {
             // Usually valid failures inside the window should imply "system is shaky",
             // but a success usually implies "system is healthy".
             // Implementation choice: We clear failures to reward success.
-            inner.failures.clear(); 
+            inner.failures.clear();
         }
     }
 
     pub async fn on_failure(&self) {
         let mut inner = self.inner.lock().await;
         let now = Instant::now();
-        
+
         // Add new failure
         inner.failures.push(now);
         inner.last_failure_time = Some(now);

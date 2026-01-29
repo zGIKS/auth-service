@@ -1,4 +1,4 @@
-use redis::{Client, Script, RedisError};
+use redis::{Client, RedisError, Script};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone)]
@@ -20,18 +20,27 @@ impl RedisRateLimiter {
     }
 
     /// Checks if the request is allowed using the Token Bucket algorithm.
-    /// 
+    ///
     /// # Arguments
     /// * `key` - The unique key for the limit (e.g., "rate_limit:ip:127.0.0.1")
     /// * `limit` - The burst capacity of the bucket
     /// * `rate_per_sec` - The rate at which tokens are refilled per second
     /// * `cost` - The cost of the current request (usually 1)
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` if allowed
     /// * `Err(RateLimitError::Exceeded(retry_after_ms))` if limited
-    pub async fn check(&self, key: &str, limit: u64, rate_per_sec: f64, cost: u64) -> Result<(), RateLimitError> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+    pub async fn check(
+        &self,
+        key: &str,
+        limit: u64,
+        rate_per_sec: f64,
+        cost: u64,
+    ) -> Result<(), RateLimitError> {
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(RateLimitError::Redis)?;
 
         // Lua script for Token Bucket
@@ -42,7 +51,8 @@ impl RedisRateLimiter {
         // ARGV[3]: cost (tokens to consume)
         // ARGV[4]: now (current timestamp in seconds)
         // ARGV[5]: ttl (expiration for keys, e.g., 2 times the time to fill bucket)
-        let script = Script::new(r#"
+        let script = Script::new(
+            r#"
             local tokens_key = KEYS[1]
             local ts_key = KEYS[2]
             local limit = tonumber(ARGV[1])
@@ -73,9 +83,13 @@ impl RedisRateLimiter {
                 local retry_seconds = missing / rate
                 return {0, retry_seconds}
             end
-        "#);
+        "#,
+        );
 
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs_f64();
         let ttl = (limit as f64 / rate_per_sec * 2.0).ceil() as u64; // Keep keys long enough to recover
         let ttl = if ttl < 60 { 60 } else { ttl };
 

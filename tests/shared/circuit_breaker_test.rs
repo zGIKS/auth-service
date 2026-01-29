@@ -17,7 +17,7 @@ async fn test_opens_after_threshold_failures() {
     assert!(cb.is_call_permitted().await); // Still closed (2 failures)
 
     cb.on_failure().await; // 3rd failure
-    
+
     // Should be open now
     assert!(!cb.is_call_permitted().await);
 }
@@ -42,12 +42,12 @@ async fn test_half_open_to_closed_on_success() {
 
     cb.on_failure().await; // Open
     sleep(Duration::from_millis(60)).await;
-    
+
     // Transitions to HalfOpen implicitly by checking permission
-    assert!(cb.is_call_permitted().await); 
+    assert!(cb.is_call_permitted().await);
 
     cb.on_success().await;
-    
+
     // Should be Closed now
     assert!(cb.is_call_permitted().await);
 }
@@ -58,11 +58,11 @@ async fn test_half_open_to_open_on_failure() {
 
     cb.on_failure().await; // Open
     sleep(Duration::from_millis(60)).await;
-    
+
     assert!(cb.is_call_permitted().await); // Transitions to HalfOpen
 
     cb.on_failure().await; // Failed probe
-    
+
     // Should be Open again
     assert!(!cb.is_call_permitted().await);
 }
@@ -78,13 +78,19 @@ async fn test_half_open_rejects_concurrent_calls() {
     assert!(cb.is_call_permitted().await, "The probe should be allowed");
 
     // Second call sees HalfOpen and should be rejected
-    assert!(!cb.is_call_permitted().await, "Concurrent calls during probe should be rejected");
+    assert!(
+        !cb.is_call_permitted().await,
+        "Concurrent calls during probe should be rejected"
+    );
 
     // Probe succeeds
     cb.on_success().await;
 
     // Circuit closes
-    assert!(cb.is_call_permitted().await, "Circuit should be closed after success");
+    assert!(
+        cb.is_call_permitted().await,
+        "Circuit should be closed after success"
+    );
 }
 
 #[tokio::test]
@@ -93,11 +99,14 @@ async fn test_sliding_window_resets_failures() {
     let cb = AppCircuitBreaker::new(2, Duration::from_secs(1), Duration::from_millis(200));
 
     cb.on_failure().await; // Failure 1
-    
+
     // Wait for window to pass
     sleep(Duration::from_millis(300)).await;
 
     cb.on_failure().await; // Failure 2 (Should be treated as 1st active failure)
 
-    assert!(cb.is_call_permitted().await, "Circuit should stay Closed because first failure expired");
+    assert!(
+        cb.is_call_permitted().await,
+        "Circuit should stay Closed because first failure expired"
+    );
 }

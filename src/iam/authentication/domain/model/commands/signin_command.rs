@@ -11,6 +11,10 @@ pub struct SigninCommand {
 
 impl SigninCommand {
     pub fn new(email: String, password: String, ip_address: Option<String>) -> Self {
-        Self { email, password, ip_address }
+        Self {
+            email,
+            password,
+            ip_address,
+        }
     }
 }

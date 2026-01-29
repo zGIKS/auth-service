@@ -142,7 +142,8 @@ async fn test_signin_with_acl_boundary() {
     // Verify that Authentication BC uses ACL to communicate with Identity BC
     let mut mock_identity_facade = MockIdentityFacadeShim::new();
     let mut mock_token_service = MockTokenServiceShim::new();
-    let mut mock_session_repository = MockSessionRepositoryShim::new();    let mut mock_account_lockout = MockAccountLockoutVerifierShim::new();
+    let mut mock_session_repository = MockSessionRepositoryShim::new();
+    let mut mock_account_lockout = MockAccountLockoutVerifierShim::new();
     let user_id = Uuid::new_v4();
     let email = "acl@example.com".to_string();
     let password = "password123".to_string();
@@ -244,7 +245,7 @@ async fn test_signin_preserves_user_id() {
         .withf(move |uid, _, _| *uid == expected_user_id)
         .times(1)
         .returning(|_, _, _| Ok(()));
-// Lockout mocks
+    // Lockout mocks
     mock_account_lockout
         .expect_check_locked()
         .returning(|_, _| Ok(()));
@@ -284,7 +285,7 @@ async fn test_signin_error_propagation() {
         .expect_check_locked()
         .returning(|_, _| Ok(()));
 
-    // reset_failure won't be called because verify_credentials fails before returning user/none? 
+    // reset_failure won't be called because verify_credentials fails before returning user/none?
     // Wait, verify_credentials return Err here.
     // Logic: check_locked -> verify_credentials -> (Ok(Some) -> reset) | (Ok(None) -> register) | (Err -> propagate)
     // So reset/register won't be called.
@@ -297,8 +298,11 @@ async fn test_signin_error_propagation() {
         604800,
     );
 
-
-    let command = SigninCommand::new("error@example.com".to_string(), "password".to_string(), None);
+    let command = SigninCommand::new(
+        "error@example.com".to_string(),
+        "password".to_string(),
+        None,
+    );
     let result = service.signin(command).await;
 
     assert!(result.is_err());

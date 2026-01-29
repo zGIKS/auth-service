@@ -10,7 +10,9 @@ use mockall::mock;
 use std::error::Error;
 use uuid::Uuid;
 
-use auth_service::shared::infrastructure::services::account_lockout::{AccountLockoutVerifier, LockoutError};
+use auth_service::shared::infrastructure::services::account_lockout::{
+    AccountLockoutVerifier, LockoutError,
+};
 
 // Mock IdentityFacade using shim pattern for async traits
 mock! {
@@ -139,8 +141,19 @@ impl AccountLockoutVerifier for MockAccountLockoutVerifierShim {
         self.check_locked(identity.to_string(), ip.map(|s| s.to_string()))
     }
 
-    async fn register_failure(&self, identity: &str, ip: Option<&str>, threshold: u64, lock_duration_sec: u64) -> Result<bool, LockoutError> {
-        self.register_failure(identity.to_string(), ip.map(|s| s.to_string()), threshold, lock_duration_sec)
+    async fn register_failure(
+        &self,
+        identity: &str,
+        ip: Option<&str>,
+        threshold: u64,
+        lock_duration_sec: u64,
+    ) -> Result<bool, LockoutError> {
+        self.register_failure(
+            identity.to_string(),
+            ip.map(|s| s.to_string()),
+            threshold,
+            lock_duration_sec,
+        )
     }
 
     async fn reset_failure(&self, identity: &str, ip: Option<&str>) -> Result<(), LockoutError> {

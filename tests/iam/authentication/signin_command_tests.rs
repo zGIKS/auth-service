@@ -8,7 +8,6 @@ use validator::Validate;
 use uuid::Uuid;
 use crate::iam::authentication::test_mocks::{MockAccountLockoutVerifierShim};
 
-
 #[tokio::test]
 async fn test_signin_success() {
     let mut mock_identity_facade = MockIdentityFacadeShim::new();
@@ -62,7 +61,9 @@ async fn test_signin_success() {
     let refresh_token_clone_2 = refresh_token.clone();
     mock_session_repository
         .expect_save_refresh_token()
-        .withf(move |uid: &Uuid, rt: &RefreshToken, ttl: &u64| *uid == user_id && rt == &refresh_token_clone_2 && *ttl == 604800)
+        .withf(move |uid: &Uuid, rt: &RefreshToken, ttl: &u64| {
+            *uid == user_id && rt == &refresh_token_clone_2 && *ttl == 604800
+        })
         .times(1)
         .returning(|_, _, _| Ok(()));
 
@@ -94,7 +95,8 @@ async fn test_signin_success() {
 async fn test_signin_invalid_credentials() {
     let mut mock_identity_facade = MockIdentityFacadeShim::new();
     let mock_token_service = MockTokenServiceShim::new();
-    let mock_session_repository = MockSessionRepositoryShim::new();    let mut mock_account_lockout = MockAccountLockoutVerifierShim::new();
+    let mock_session_repository = MockSessionRepositoryShim::new();
+    let mut mock_account_lockout = MockAccountLockoutVerifierShim::new();
     let email = "invalid@example.com".to_string();
     let password = "wrongpassword".to_string();
 
@@ -160,7 +162,7 @@ async fn test_signin_identity_facade_error() {
         .returning(|_, _| Ok(()));
     // It propagates error, so register/reset might not be called or handled differently.
     // Based on implementation: verify -> Err -> returns Err immediately. No register/reset.
-    
+
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,

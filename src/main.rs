@@ -9,8 +9,8 @@ use sea_orm::{ConnectionTrait, Database, Schema};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use auth_service::shared::infrastructure::persistence::redis as redis_infra;
 use auth_service::shared::infrastructure::circuit_breaker::create_circuit_breaker;
+use auth_service::shared::infrastructure::persistence::redis as redis_infra;
 use auth_service::shared::interfaces::rest::middleware::rate_limit_middleware;
 
 #[tokio::main]
@@ -50,6 +50,16 @@ async fn main() {
         .parse()
         .expect("PASSWORD_RESET_TTL_SECONDS must be a number");
 
+    let lockout_threshold: u64 = std::env::var("LOCKOUT_THRESHOLD")
+        .expect("LOCKOUT_THRESHOLD must be set")
+        .parse()
+        .expect("LOCKOUT_THRESHOLD must be a number");
+
+    let lockout_duration_seconds: u64 = std::env::var("LOCKOUT_DURATION_SECONDS")
+        .expect("LOCKOUT_DURATION_SECONDS must be set")
+        .parse()
+        .expect("LOCKOUT_DURATION_SECONDS must be a number");
+
     let frontend_url = std::env::var("FRONTEND_URL").ok();
 
     let google_client_id = std::env::var("GOOGLE_CLIENT_ID").expect("GOOGLE_CLIENT_ID must be set");
@@ -80,6 +90,8 @@ async fn main() {
         pending_registration_ttl_seconds,
         password_reset_ttl_seconds,
         frontend_url,
+        lockout_threshold,
+        lockout_duration_seconds,
         google_client_id,
         google_client_secret,
         google_redirect_uri,
@@ -111,5 +123,10 @@ async fn main() {
         port
     );
 
-    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }

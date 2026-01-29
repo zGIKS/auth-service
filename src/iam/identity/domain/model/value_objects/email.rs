@@ -1,6 +1,6 @@
+use hickory_resolver::TokioAsyncResolver;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use hickory_resolver::TokioAsyncResolver;
 use validator::Validate;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Validate)]

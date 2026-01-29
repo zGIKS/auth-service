@@ -103,7 +103,6 @@ async fn test_signin_invalid_credentials() {
         .expect_user_exists()
         .returning(|_| Ok(true));
 
-
     // Lockout mocks
     mock_account_lockout
         .expect_check_locked()

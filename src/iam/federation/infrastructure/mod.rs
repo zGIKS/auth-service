@@ -1,2 +1,2 @@
-pub mod services;
 pub mod persistence;
+pub mod services;

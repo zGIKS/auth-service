@@ -13,6 +13,8 @@ pub struct AppState {
     pub pending_registration_ttl_seconds: u64,
     pub password_reset_ttl_seconds: u64,
     pub frontend_url: Option<String>,
+    pub lockout_threshold: u64,
+    pub lockout_duration_seconds: u64,
     pub google_client_id: String,
     pub google_client_secret: String,
     pub google_redirect_uri: String,
