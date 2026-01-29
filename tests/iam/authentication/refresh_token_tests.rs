@@ -70,6 +70,7 @@ async fn test_refresh_token_success() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command = RefreshTokenCommand::new(old_refresh_token_str);
@@ -100,6 +101,7 @@ async fn test_refresh_token_invalid() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command = RefreshTokenCommand::new(invalid_refresh_token_str);

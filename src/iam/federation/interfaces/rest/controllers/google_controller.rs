@@ -1,5 +1,4 @@
 use axum::{
-    Json,
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Redirect},
@@ -10,7 +9,6 @@ use crate::iam::authentication::{
         persistence::redis::redis_session_repository::RedisSessionRepository,
         services::jwt_token_service::JwtTokenService,
     },
-    interfaces::rest::resources::signin_resource::TokenResponse,
 };
 use crate::iam::federation::{
     application::services::google_federation_service::GoogleFederationService,
@@ -45,12 +43,8 @@ pub async fn redirect_to_google(State(state): State<AppState>) -> impl IntoRespo
     tag = "auth",
     params(GoogleCallbackQuery),
     responses(
-        (status = 200, description = "Federated login successful", body = TokenResponse),
-        (status = 400, description = "Invalid authorization code", body = ErrorResponse),
-        (status = 401, description = "Email not verified", body = ErrorResponse),
-        (status = 409, description = "Email registered with different provider", body = ErrorResponse),
-        (status = 502, description = "Google provider error", body = ErrorResponse),
-        (status = 500, description = "Internal server error", body = ErrorResponse)
+        (status = 302, description = "Redirect to frontend with tokens"),
+        (status = 302, description = "Redirect to frontend with error")
     )
 )]
 pub async fn google_callback(
@@ -69,54 +63,59 @@ pub async fn google_callback(
     let session_repo =
         RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
 
-    let service =
-        GoogleFederationService::new(identity_repo, token_service, session_repo, oauth_client);
+    let service = GoogleFederationService::new(
+        identity_repo,
+        token_service,
+        session_repo,
+        oauth_client,
+        state.refresh_token_duration_seconds,
+    );
 
     match service.authenticate(query.code.clone()).await {
-        Ok((token, refresh_token)) => (
-            StatusCode::OK,
-            Json(TokenResponse {
-                token: token.value().to_string(),
-                refresh_token: refresh_token.value().to_string(),
-            }),
-        )
-            .into_response(),
-        Err(err) => map_error(err).into_response(),
-    }
-}
+        Ok((token, refresh_token)) => {
+            let frontend_url = match state.frontend_url.as_deref() {
+                Some(url) => url,
+                None => {
+                    return ErrorResponse::new("Frontend URL not configured")
+                        .with_code(StatusCode::INTERNAL_SERVER_ERROR.as_u16())
+                        .into_response()
+                }
+            };
 
-fn map_error(error: FederationError) -> impl IntoResponse {
-    match error {
-        FederationError::InvalidAuthorizationCode => {
-            ErrorResponse::new("Invalid authorization code")
-                .with_code(StatusCode::BAD_REQUEST.as_u16())
-                .into_response()
+            let redirect_url = format!(
+                "{}/auth/google/callback?token={}&refresh_token={}",
+                frontend_url,
+                urlencoding::encode(token.value()),
+                urlencoding::encode(refresh_token.value())
+            );
+            Redirect::to(&redirect_url).into_response()
         }
-        FederationError::InvalidEmail => ErrorResponse::new("Invalid email returned by Google")
-            .with_code(StatusCode::BAD_REQUEST.as_u16())
-            .into_response(),
-        FederationError::EmailNotVerified => ErrorResponse::new("Google email is not verified")
-            .with_code(StatusCode::UNAUTHORIZED.as_u16())
-            .into_response(),
-        FederationError::ProviderMismatch => {
-            ErrorResponse::new("Email already registered with a different provider")
-                .with_code(StatusCode::CONFLICT.as_u16())
-                .into_response()
-        }
-        FederationError::TokenExchange(details) => {
-            ErrorResponse::new(format!("Failed to exchange code with Google: {}", details))
-                .with_code(StatusCode::BAD_GATEWAY.as_u16())
-                .into_response()
-        }
-        FederationError::UserInfo(details) => {
-            ErrorResponse::new(format!("Failed to retrieve Google user info: {}", details))
-                .with_code(StatusCode::BAD_GATEWAY.as_u16())
-                .into_response()
-        }
-        FederationError::Internal(details) => {
-            ErrorResponse::new(format!("Internal error: {}", details))
-                .with_code(StatusCode::INTERNAL_SERVER_ERROR.as_u16())
-                .into_response()
+        Err(err) => {
+            let frontend_url = match state.frontend_url.as_deref() {
+                Some(url) => url,
+                None => {
+                    return ErrorResponse::new("Frontend URL not configured")
+                        .with_code(StatusCode::INTERNAL_SERVER_ERROR.as_u16())
+                        .into_response()
+                }
+            };
+
+            let error_msg = match err {
+                FederationError::InvalidAuthorizationCode => "Invalid authorization code",
+                FederationError::InvalidEmail => "Invalid email returned by Google",
+                FederationError::EmailNotVerified => "Google email is not verified",
+                FederationError::ProviderMismatch => "Email already registered with a different provider",
+                FederationError::TokenExchange(_) => "Failed to exchange code with Google",
+                FederationError::UserInfo(_) => "Failed to retrieve Google user info",
+                FederationError::Internal(_) => "Internal error",
+            };
+            
+            let redirect_url = format!(
+                "{}/login?error=google_auth_failed&message={}",
+                frontend_url,
+                urlencoding::encode(error_msg)
+            );
+            Redirect::to(&redirect_url).into_response()
         }
     }
 }

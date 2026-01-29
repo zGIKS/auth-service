@@ -269,4 +269,20 @@ impl SessionRepository for RedisSessionRepository {
             None => Ok(None),
         }
     }
+
+    async fn delete_session(&self, user_id: Uuid) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let mut con = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        let key = format!("session:{}", user_id);
+        let _: () = con
+            .del(key)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        Ok(())
+    }
 }

@@ -50,6 +50,7 @@ mock! {
         pub fn revoke_all_user_sessions(&self, user_id: Uuid) -> Result<(), Box<dyn Error + Send + Sync>>;
         pub fn is_jti_blacklisted(&self, jti: &str) -> Result<bool, Box<dyn Error + Send + Sync>>;
         pub fn get_user_invalidation_timestamp(&self, user_id: Uuid) -> Result<Option<u64>, Box<dyn Error + Send + Sync>>;
+        pub fn delete_session(&self, user_id: Uuid) -> Result<(), Box<dyn Error + Send + Sync>>;
     }
 }
 
@@ -109,5 +110,9 @@ impl SessionRepository for MockSessionRepositoryShim {
         user_id: Uuid,
     ) -> Result<Option<u64>, Box<dyn Error + Send + Sync>> {
         self.get_user_invalidation_timestamp(user_id)
+    }
+
+    async fn delete_session(&self, user_id: Uuid) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.delete_session(user_id)
     }
 }

@@ -4,6 +4,7 @@ use auth_service::iam::authentication::application::command_services::authentica
 use auth_service::iam::authentication::domain::model::commands::signin_command::SigninCommand;
 use auth_service::iam::authentication::domain::model::value_objects::{token::Token, refresh_token::RefreshToken};
 use auth_service::iam::authentication::domain::services::authentication_command_service::AuthenticationCommandService;
+use std::error::Error;
 use uuid::Uuid;
 
 #[tokio::test]
@@ -52,6 +53,7 @@ async fn test_complete_authentication_flow() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command = SigninCommand::new(email, password);
@@ -108,6 +110,7 @@ async fn test_multiple_signin_attempts_same_user() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        604800,
     );
 
     let command1 = SigninCommand::new("user@example.com".to_string(), "password".to_string());
@@ -168,6 +171,7 @@ async fn test_signin_with_acl_boundary() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command = SigninCommand::new(email, password);
@@ -219,6 +223,7 @@ async fn test_signin_preserves_user_id() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        2592000,
     );
 
     let command = SigninCommand::new("user@example.com".to_string(), "password".to_string());
@@ -238,13 +243,14 @@ async fn test_signin_error_propagation() {
     mock_identity_facade
         .expect_verify_credentials()
         .times(1)
-        .returning(|_, _| Err("Network timeout".into()));
-
+        .returning(|_, _| Err(Box::new(std::io::Error::new(std::io::ErrorKind::TimedOut, "Network timeout")) as Box<dyn Error + Send + Sync>));
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        604800,
     );
+
 
     let command = SigninCommand::new("error@example.com".to_string(), "password".to_string());
     let result = service.signin(command).await;

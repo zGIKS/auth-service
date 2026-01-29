@@ -30,6 +30,7 @@ where
     token_service: T,
     session_repository: S,
     oauth_service: O,
+    refresh_token_duration_seconds: u64,
 }
 
 impl<R, T, S, O> GoogleFederationService<R, T, S, O>
@@ -44,12 +45,14 @@ where
         token_service: T,
         session_repository: S,
         oauth_service: O,
+        refresh_token_duration_seconds: u64,
     ) -> Self {
         Self {
             identity_repository,
             token_service,
             session_repository,
             oauth_service,
+            refresh_token_duration_seconds,
         }
     }
 
@@ -126,7 +129,11 @@ where
             .map_err(|e| FederationError::Internal(e.to_string()))?;
 
         self.session_repository
-            .save_refresh_token(user_id, &refresh_token, 2_592_000)
+            .save_refresh_token(
+                user_id,
+                &refresh_token,
+                self.refresh_token_duration_seconds,
+            )
             .await
             .map_err(|e| FederationError::Internal(e.to_string()))?;
 

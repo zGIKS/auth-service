@@ -58,6 +58,7 @@ pub trait SessionRepository: Send + Sync {
         &self,
         user_id: Uuid,
     ) -> Result<Option<u64>, Box<dyn Error + Send + Sync>>;
+    async fn delete_session(&self, user_id: Uuid) -> Result<(), Box<dyn Error + Send + Sync>>;
 }
 
 #[async_trait]

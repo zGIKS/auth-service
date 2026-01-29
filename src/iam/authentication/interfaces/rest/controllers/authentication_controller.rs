@@ -60,8 +60,12 @@ pub async fn signin(
     let session_repo =
         RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
 
-    let service =
-        AuthenticationCommandServiceImpl::new(identity_facade, token_service, session_repo);
+    let service = AuthenticationCommandServiceImpl::new(
+        identity_facade,
+        token_service,
+        session_repo,
+        state.refresh_token_duration_seconds,
+    );
 
     let command = SigninCommand::new(resource.email, resource.password);
 
@@ -109,8 +113,12 @@ pub async fn logout(
     let session_repo =
         RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
 
-    let service =
-        AuthenticationCommandServiceImpl::new(identity_facade, token_service, session_repo);
+    let service = AuthenticationCommandServiceImpl::new(
+        identity_facade,
+        token_service,
+        session_repo,
+        state.refresh_token_duration_seconds,
+    );
 
     let command = LogoutCommand::new(resource.refresh_token);
 
@@ -151,8 +159,12 @@ pub async fn refresh_token(
     let session_repo =
         RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
 
-    let service =
-        AuthenticationCommandServiceImpl::new(identity_facade, token_service, session_repo);
+    let service = AuthenticationCommandServiceImpl::new(
+        identity_facade,
+        token_service,
+        session_repo,
+        state.refresh_token_duration_seconds,
+    );
 
     let command = RefreshTokenCommand::new(resource.refresh_token);
 
