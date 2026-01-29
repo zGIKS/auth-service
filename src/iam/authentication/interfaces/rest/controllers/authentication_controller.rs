@@ -27,6 +27,8 @@ use crate::iam::identity::{
 };
 use crate::shared::interfaces::rest::app_state::AppState;
 use crate::shared::interfaces::rest::error_response::ErrorResponse;
+use crate::shared::infrastructure::services::account_lockout::AccountLockoutService;
+
 use axum::{
     extract::{Json, Query, State},
     http::StatusCode,
@@ -59,11 +61,13 @@ pub async fn signin(
         JwtTokenService::new(state.jwt_secret.clone(), state.session_duration_seconds);
     let session_repo =
         RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
+    let lockout_service = AccountLockoutService::new(state.redis.clone());
 
     let service = AuthenticationCommandServiceImpl::new(
         identity_facade,
         token_service,
         session_repo,
+        lockout_service,
         state.refresh_token_duration_seconds,
     );
 
@@ -112,11 +116,13 @@ pub async fn logout(
         JwtTokenService::new(state.jwt_secret.clone(), state.session_duration_seconds);
     let session_repo =
         RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
+    let lockout_service = AccountLockoutService::new(state.redis.clone());
 
     let service = AuthenticationCommandServiceImpl::new(
         identity_facade,
         token_service,
         session_repo,
+        lockout_service,
         state.refresh_token_duration_seconds,
     );
 
@@ -158,11 +164,13 @@ pub async fn refresh_token(
         JwtTokenService::new(state.jwt_secret.clone(), state.session_duration_seconds);
     let session_repo =
         RedisSessionRepository::new(state.redis.clone(), state.session_duration_seconds);
+    let lockout_service = AccountLockoutService::new(state.redis.clone());
 
     let service = AuthenticationCommandServiceImpl::new(
         identity_facade,
         token_service,
         session_repo,
+        lockout_service,
         state.refresh_token_duration_seconds,
     );
 

@@ -3,13 +3,14 @@ use auth_service::iam::authentication::domain::model::commands::signin_command::
 use auth_service::iam::authentication::domain::model::value_objects::{token::Token, refresh_token::RefreshToken};
 use auth_service::iam::authentication::domain::services::authentication_command_service::AuthenticationCommandService;
 use uuid::Uuid;
-use crate::iam::authentication::test_mocks::{MockIdentityFacadeShim, MockTokenServiceShim, MockSessionRepositoryShim};
+use crate::iam::authentication::test_mocks::{MockIdentityFacadeShim, MockTokenServiceShim, MockSessionRepositoryShim, MockAccountLockoutVerifierShim};
 
 #[tokio::test]
 async fn test_signin_success() {
     let mut mock_identity_facade = MockIdentityFacadeShim::new();
     let mut mock_token_service = MockTokenServiceShim::new();
     let mut mock_session_repository = MockSessionRepositoryShim::new();
+    let mut mock_account_lockout = MockAccountLockoutVerifierShim::new();
 
     let user_id = Uuid::new_v4();
     let email = "test@example.com".to_string();
@@ -57,10 +58,19 @@ async fn test_signin_success() {
         })
         .returning(|_, _, _| Ok(()));
 
+    // Lockout mocks
+    mock_account_lockout
+        .expect_check_locked()
+        .returning(|_| Ok(()));
+    mock_account_lockout
+        .expect_reset_failure()
+        .returning(|_| Ok(()));
+
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        mock_account_lockout,
         2592000,
     );
 
@@ -78,6 +88,7 @@ async fn test_signin_invalid_credentials() {
     let mut mock_identity_facade = MockIdentityFacadeShim::new();
     let mock_token_service = MockTokenServiceShim::new();
     let mock_session_repository = MockSessionRepositoryShim::new();
+    let mut mock_account_lockout = MockAccountLockoutVerifierShim::new();
 
     let email = "wrong@example.com".to_string();
     let password = "wrongpassword".to_string();
@@ -87,10 +98,25 @@ async fn test_signin_invalid_credentials() {
         .expect_verify_credentials()
         .returning(|_, _| Ok(None));
 
+    // Fix: Expect existence check
+    mock_identity_facade
+        .expect_user_exists()
+        .returning(|_| Ok(true));
+
+
+    // Lockout mocks
+    mock_account_lockout
+        .expect_check_locked()
+        .returning(|_| Ok(()));
+    mock_account_lockout
+        .expect_register_failure()
+        .returning(|_, _, _| Ok(false));
+
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        mock_account_lockout,
         2592000,
     );
 

@@ -100,7 +100,7 @@ async fn test_confirm_registration_invalid_token() {
     let result: Result<Identity, DomainError> = service.confirm_registration(command).await;
 
     match result {
-        Err(DomainError::InvalidToken) => assert!(true),
+        Err(DomainError::InvalidToken) => {} // Expected
         _ => panic!("Expected InvalidToken error, got {:?}", result),
     }
 }

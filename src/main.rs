@@ -11,6 +11,7 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use auth_service::shared::infrastructure::persistence::redis as redis_infra;
 use auth_service::shared::infrastructure::circuit_breaker::create_circuit_breaker;
+use auth_service::shared::interfaces::rest::middleware::rate_limit_middleware;
 
 #[tokio::main]
 async fn main() {
@@ -98,6 +99,7 @@ async fn main() {
         .route("/api/v1/identity/forgot-password", post(iam::identity::interfaces::rest::controllers::identity_controller::request_password_reset))
         .route("/api/v1/identity/reset-password", post(iam::identity::interfaces::rest::controllers::identity_controller::reset_password))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", port);

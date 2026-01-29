@@ -144,7 +144,7 @@ async fn test_register_identity_invalid_mx() {
     let result: Result<(Identity, String), DomainError> = service.handle(command).await;
 
     match result {
-        Err(DomainError::InvalidEmailDomain(_)) => assert!(true),
+        Err(DomainError::InvalidEmailDomain(_)) => {} // Expected
         _ => panic!("Expected InvalidEmailDomain error, got {:?}", result),
     }
 }
@@ -299,7 +299,7 @@ async fn test_register_identity_duplicate_email() {
     let result: Result<(Identity, String), DomainError> = service.handle(command).await;
 
     match result {
-        Err(DomainError::EmailAlreadyExists) => assert!(true),
+        Err(DomainError::EmailAlreadyExists) => {} // Expected
         _ => panic!("Expected EmailAlreadyExists error, got {:?}", result),
     }
 }
@@ -396,7 +396,7 @@ async fn test_confirm_registration_invalid_token() {
     let result: Result<Identity, DomainError> = service.confirm_registration(command).await;
 
     match result {
-        Err(DomainError::InvalidToken) => assert!(true),
+        Err(DomainError::InvalidToken) => {} // Expected
         _ => panic!("Expected InvalidToken error, got {:?}", result),
     }
 }

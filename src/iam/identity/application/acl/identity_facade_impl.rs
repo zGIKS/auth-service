@@ -40,4 +40,17 @@ impl<R: IdentityRepository> IdentityFacade for IdentityFacadeImpl<R> {
             Err(e) => Err(e),
         }
     }
+
+    async fn user_exists(&self, email: String) -> Result<bool, Box<dyn Error + Send + Sync>> {
+        let email_vo = match Email::new(email) {
+            Ok(e) => e,
+            Err(_) => return Ok(false),
+        };
+
+        match self.repository.find_by_email(&email_vo).await {
+            Ok(Some(_)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
 }

@@ -11,52 +11,65 @@ use crate::iam::authentication::domain::{
     },
 };
 use crate::iam::identity::interfaces::acl::identity_facade::IdentityFacade;
+use crate::shared::infrastructure::services::account_lockout::AccountLockoutVerifier;
 use std::error::Error;
 
-pub struct AuthenticationCommandServiceImpl<F, T, S>
+pub struct AuthenticationCommandServiceImpl<F, T, S, L>
 where
     F: IdentityFacade,
     T: TokenService,
     S: SessionRepository,
+    L: AccountLockoutVerifier,
 {
     identity_facade: F,
     token_service: T,
     session_repository: S,
+    account_lockout_service: L,
     refresh_token_duration_seconds: u64,
 }
 
-impl<F, T, S> AuthenticationCommandServiceImpl<F, T, S>
+impl<F, T, S, L> AuthenticationCommandServiceImpl<F, T, S, L>
 where
     F: IdentityFacade,
     T: TokenService,
     S: SessionRepository,
+    L: AccountLockoutVerifier,
 {
     pub fn new(
         identity_facade: F,
         token_service: T,
         session_repository: S,
+        account_lockout_service: L,
         refresh_token_duration_seconds: u64,
     ) -> Self {
         Self {
             identity_facade,
             token_service,
             session_repository,
+            account_lockout_service,
             refresh_token_duration_seconds,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<F, T, S> AuthenticationCommandService for AuthenticationCommandServiceImpl<F, T, S>
+impl<F, T, S, L> AuthenticationCommandService for AuthenticationCommandServiceImpl<F, T, S, L>
 where
     F: IdentityFacade,
     T: TokenService,
     S: SessionRepository,
+    L: AccountLockoutVerifier,
 {
     async fn signin(
         &self,
         command: SigninCommand,
     ) -> Result<(Token, RefreshToken), Box<dyn Error + Send + Sync>> {
+        // Check if the account is locked
+        if let Err(e) = self.account_lockout_service.check_locked(&command.email).await {
+            return Err(Box::new(e));
+        }
+
+        let email = command.email.clone();
         let user_id = self
             .identity_facade
             .verify_credentials(command.email, command.password)
@@ -64,6 +77,9 @@ where
 
         match user_id {
             Some(uid) => {
+                // Reset failure counter on successful login
+                self.account_lockout_service.reset_failure(&email).await?;
+
                 // Generate token and get its JTI
                 let (token, jti) = self.token_service.generate_token(uid)?;
                 let refresh_token = self.token_service.generate_refresh_token()?;
@@ -81,7 +97,13 @@ where
 
                 Ok((token, refresh_token))
             }
-            None => Err("Invalid credentials".into()),
+            None => {
+                // Check if user exists before registering failure to prevent DoS on non-existent accounts
+                if self.identity_facade.user_exists(email.clone()).await? {
+                    self.account_lockout_service.register_failure(&email, 5, 300).await?;
+                }
+                Err("Invalid credentials".into())
+            },
         }
     }
 

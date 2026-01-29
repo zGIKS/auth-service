@@ -45,12 +45,12 @@ impl AppCircuitBreaker {
         match inner.state {
             State::Closed => true,
             State::Open => {
-                if let Some(last_fail) = inner.last_failure_time {
-                    if last_fail.elapsed() >= inner.open_timeout {
-                        // Transition to HalfOpen for a probe
-                        inner.state = State::HalfOpen;
-                        return true;
-                    }
+                if let Some(last_fail) = inner.last_failure_time
+                    && last_fail.elapsed() >= inner.open_timeout
+                {
+                    // Transition to HalfOpen for a probe
+                    inner.state = State::HalfOpen;
+                    return true;
                 }
                 false
             }

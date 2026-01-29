@@ -94,7 +94,7 @@ async fn test_multiple_password_reset_requests_invalidate_previous_tokens() {
         "Third password reset request should succeed"
     );
 
-    unsafe { std::env::remove_var("FRONTEND_URL") };
+    // unsafe { std::env::remove_var("FRONTEND_URL") };
 
     // Note: The actual token invalidation happens in the repository layer
     // password_reset_token_repository_impl.rs:
@@ -183,5 +183,5 @@ async fn test_password_reset_handles_concurrent_requests_safely() {
     // - User receives "success" message but no email is sent
     // - Lock expires after 10 seconds to prevent deadlock
 
-    unsafe { std::env::remove_var("FRONTEND_URL") };
+    // unsafe { std::env::remove_var("FRONTEND_URL") };
 }

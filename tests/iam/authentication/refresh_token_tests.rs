@@ -3,13 +3,14 @@ use auth_service::iam::authentication::domain::model::commands::refresh_token_co
 use auth_service::iam::authentication::domain::model::value_objects::{token::Token, refresh_token::RefreshToken};
 use auth_service::iam::authentication::domain::services::authentication_command_service::AuthenticationCommandService;
 use uuid::Uuid;
-use crate::iam::authentication::test_mocks::{MockIdentityFacadeShim, MockTokenServiceShim, MockSessionRepositoryShim};
+use crate::iam::authentication::test_mocks::{MockIdentityFacadeShim, MockTokenServiceShim, MockSessionRepositoryShim, MockAccountLockoutVerifierShim};
 
 #[tokio::test]
 async fn test_refresh_token_success() {
     let mock_identity_facade = MockIdentityFacadeShim::new();
     let mut mock_token_service = MockTokenServiceShim::new();
     let mut mock_session_repository = MockSessionRepositoryShim::new();
+    let mock_account_lockout = MockAccountLockoutVerifierShim::new();
 
     let user_id = Uuid::new_v4();
     let old_refresh_token_str = "old_refresh_token".to_string();
@@ -70,6 +71,7 @@ async fn test_refresh_token_success() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        mock_account_lockout,
         2592000,
     );
 
@@ -86,6 +88,7 @@ async fn test_refresh_token_success() {
 async fn test_refresh_token_invalid() {
     let mock_identity_facade = MockIdentityFacadeShim::new();
     let mock_token_service = MockTokenServiceShim::new();
+    let mock_account_lockout = MockAccountLockoutVerifierShim::new();
     let mut mock_session_repository = MockSessionRepositoryShim::new();
 
     let invalid_refresh_token_str = "invalid_token".to_string();
@@ -101,6 +104,7 @@ async fn test_refresh_token_invalid() {
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        mock_account_lockout,
         2592000,
     );
 

@@ -4,7 +4,6 @@ use auth_service::iam::authentication::application::command_services::authentica
 use auth_service::iam::authentication::domain::model::commands::signin_command::SigninCommand;
 use auth_service::iam::authentication::domain::model::value_objects::{token::Token, refresh_token::RefreshToken};
 use auth_service::iam::authentication::domain::services::authentication_command_service::AuthenticationCommandService;
-use std::error::Error;
 use uuid::Uuid;
 
 #[tokio::test]
@@ -12,6 +11,7 @@ async fn test_complete_authentication_flow() {
     let mut mock_identity_facade = MockIdentityFacadeShim::new();
     let mut mock_token_service = MockTokenServiceShim::new();
     let mut mock_session_repository = MockSessionRepositoryShim::new();
+    let mut mock_account_lockout = MockAccountLockoutVerifierShim::new();
 
     let user_id = Uuid::new_v4();
     let email = "complete@example.com".to_string();
@@ -49,10 +49,18 @@ async fn test_complete_authentication_flow() {
         .times(1)
         .returning(|_, _, _| Ok(()));
 
+    mock_account_lockout
+        .expect_check_locked()
+        .returning(|_| Ok(()));
+    mock_account_lockout
+        .expect_reset_failure()
+        .returning(|_| Ok(()));
+
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        mock_account_lockout,
         2592000,
     );
 
@@ -71,6 +79,7 @@ async fn test_multiple_signin_attempts_same_user() {
     let mut mock_identity_facade = MockIdentityFacadeShim::new();
     let mut mock_token_service = MockTokenServiceShim::new();
     let mut mock_session_repository = MockSessionRepositoryShim::new();
+    let mut mock_account_lockout = MockAccountLockoutVerifierShim::new();
 
     let user_id = Uuid::new_v4();
 
@@ -106,10 +115,18 @@ async fn test_multiple_signin_attempts_same_user() {
         .times(1)
         .returning(|_, _, _| Ok(()));
 
+    mock_account_lockout
+        .expect_check_locked()
+        .returning(|_| Ok(()));
+    mock_account_lockout
+        .expect_reset_failure()
+        .returning(|_| Ok(()));
+
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        mock_account_lockout,
         604800,
     );
 
@@ -125,8 +142,7 @@ async fn test_signin_with_acl_boundary() {
     // Verify that Authentication BC uses ACL to communicate with Identity BC
     let mut mock_identity_facade = MockIdentityFacadeShim::new();
     let mut mock_token_service = MockTokenServiceShim::new();
-    let mut mock_session_repository = MockSessionRepositoryShim::new();
-
+    let mut mock_session_repository = MockSessionRepositoryShim::new();    let mut mock_account_lockout = MockAccountLockoutVerifierShim::new();
     let user_id = Uuid::new_v4();
     let email = "acl@example.com".to_string();
     let password = "password123".to_string();
@@ -167,10 +183,19 @@ async fn test_signin_with_acl_boundary() {
         .times(1)
         .returning(|_, _, _| Ok(()));
 
+    // Lockout mocks
+    mock_account_lockout
+        .expect_check_locked()
+        .returning(|_| Ok(()));
+    mock_account_lockout
+        .expect_reset_failure()
+        .returning(|_| Ok(()));
+
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        mock_account_lockout,
         2592000,
     );
 
@@ -186,6 +211,7 @@ async fn test_signin_preserves_user_id() {
     let mut mock_identity_facade = MockIdentityFacadeShim::new();
     let mut mock_token_service = MockTokenServiceShim::new();
     let mut mock_session_repository = MockSessionRepositoryShim::new();
+    let mut mock_account_lockout = MockAccountLockoutVerifierShim::new();
 
     let expected_user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
 
@@ -218,11 +244,19 @@ async fn test_signin_preserves_user_id() {
         .withf(move |uid, _, _| *uid == expected_user_id)
         .times(1)
         .returning(|_, _, _| Ok(()));
+// Lockout mocks
+    mock_account_lockout
+        .expect_check_locked()
+        .returning(|_| Ok(()));
+    mock_account_lockout
+        .expect_reset_failure()
+        .returning(|_| Ok(()));
 
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        mock_account_lockout,
         2592000,
     );
 
@@ -238,16 +272,28 @@ async fn test_signin_error_propagation() {
     let mut mock_identity_facade = MockIdentityFacadeShim::new();
     let mock_token_service = MockTokenServiceShim::new();
     let mock_session_repository = MockSessionRepositoryShim::new();
+    let mut mock_account_lockout = MockAccountLockoutVerifierShim::new();
 
     // Simulate infrastructure failure
     mock_identity_facade
         .expect_verify_credentials()
         .times(1)
-        .returning(|_, _| Err(Box::new(std::io::Error::new(std::io::ErrorKind::TimedOut, "Network timeout")) as Box<dyn Error + Send + Sync>));
+        .returning(|_, _| Err("Database connection failed".into()));
+
+    mock_account_lockout
+        .expect_check_locked()
+        .returning(|_| Ok(()));
+
+    // reset_failure won't be called because verify_credentials fails before returning user/none? 
+    // Wait, verify_credentials return Err here.
+    // Logic: check_locked -> verify_credentials -> (Ok(Some) -> reset) | (Ok(None) -> register) | (Err -> propagate)
+    // So reset/register won't be called.
+
     let service = AuthenticationCommandServiceImpl::new(
         mock_identity_facade,
         mock_token_service,
         mock_session_repository,
+        mock_account_lockout,
         604800,
     );
 
@@ -257,5 +303,5 @@ async fn test_signin_error_propagation() {
 
     assert!(result.is_err());
     let error = result.unwrap_err();
-    assert_eq!(error.to_string(), "Network timeout");
+    assert_eq!(error.to_string(), "Database connection failed");
 }

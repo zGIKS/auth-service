@@ -68,8 +68,9 @@ async fn test_request_password_reset_success() {
 
     assert!(result.is_ok());
 
-    unsafe { std::env::remove_var("FRONTEND_URL") };
+    // unsafe { std::env::remove_var("FRONTEND_URL") };
 }
+
 
 #[tokio::test]
 async fn test_request_password_reset_non_existent_email_returns_ok() {
@@ -166,7 +167,7 @@ async fn test_request_password_reset_generates_secure_token() {
 
     assert!(result.is_ok());
 
-    unsafe { std::env::remove_var("FRONTEND_URL") };
+    // unsafe { std::env::remove_var("FRONTEND_URL") };
 }
 
 #[tokio::test]
@@ -224,7 +225,7 @@ async fn test_request_password_reset_uses_correct_ttl() {
 
     assert!(result.is_ok());
 
-    unsafe { std::env::remove_var("FRONTEND_URL") };
+    // unsafe { std::env::remove_var("FRONTEND_URL") };
 }
 
 #[tokio::test]
@@ -286,5 +287,6 @@ async fn test_request_password_reset_email_contains_frontend_url() {
 
     assert!(result.is_ok());
 
-    unsafe { std::env::remove_var("FRONTEND_URL") };
+    // unsafe { std::env::remove_var("FRONTEND_URL") };
 }
+

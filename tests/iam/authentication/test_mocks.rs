@@ -10,10 +10,13 @@ use mockall::mock;
 use std::error::Error;
 use uuid::Uuid;
 
+use auth_service::shared::infrastructure::services::account_lockout::{AccountLockoutVerifier, LockoutError};
+
 // Mock IdentityFacade using shim pattern for async traits
 mock! {
     pub IdentityFacadeShim {
         pub fn verify_credentials(&self, email: String, password: String) -> Result<Option<Uuid>, Box<dyn Error + Send + Sync>>;
+        pub fn user_exists(&self, email: String) -> Result<bool, Box<dyn Error + Send + Sync>>;
     }
 }
 
@@ -25,6 +28,10 @@ impl IdentityFacade for MockIdentityFacadeShim {
         password: String,
     ) -> Result<Option<Uuid>, Box<dyn Error + Send + Sync>> {
         self.verify_credentials(email, password)
+    }
+
+    async fn user_exists(&self, email: String) -> Result<bool, Box<dyn Error + Send + Sync>> {
+        self.user_exists(email)
     }
 }
 
@@ -114,5 +121,29 @@ impl SessionRepository for MockSessionRepositoryShim {
 
     async fn delete_session(&self, user_id: Uuid) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.delete_session(user_id)
+    }
+}
+
+// Mock AccountLockoutVerifier
+mock! {
+    pub AccountLockoutVerifierShim {
+        pub fn check_locked(&self, identity: String) -> Result<(), LockoutError>;
+        pub fn register_failure(&self, identity: String, threshold: u64, lock_duration_sec: u64) -> Result<bool, LockoutError>;
+        pub fn reset_failure(&self, identity: String) -> Result<(), LockoutError>;
+    }
+}
+
+#[async_trait::async_trait]
+impl AccountLockoutVerifier for MockAccountLockoutVerifierShim {
+    async fn check_locked(&self, identity: &str) -> Result<(), LockoutError> {
+        self.check_locked(identity.to_string())
+    }
+
+    async fn register_failure(&self, identity: &str, threshold: u64, lock_duration_sec: u64) -> Result<bool, LockoutError> {
+        self.register_failure(identity.to_string(), threshold, lock_duration_sec)
+    }
+
+    async fn reset_failure(&self, identity: &str) -> Result<(), LockoutError> {
+        self.reset_failure(identity.to_string())
     }
 }
