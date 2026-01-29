@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -15,32 +16,38 @@ pub struct AppCircuitBreaker {
 
 struct Inner {
     state: State,
-    failure_count: u32,
+    failures: Vec<Instant>, // Sliding window of failures
     last_failure_time: Option<Instant>,
-    failure_threshold: u32,
+    failure_threshold: usize,
     open_timeout: Duration,
+    failure_window: Duration, // Time window to consider failures valid
 }
 
 impl AppCircuitBreaker {
-    pub fn new(failure_threshold: u32, open_timeout: Duration) -> Self {
+    pub fn new(failure_threshold: usize, open_timeout: Duration, failure_window: Duration) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 state: State::Closed,
-                failure_count: 0,
+                failures: Vec::new(),
                 last_failure_time: None,
                 failure_threshold,
                 open_timeout,
+                failure_window,
             })),
         }
     }
 
-    pub fn is_call_permitted(&self) -> bool {
-        let mut inner = self.inner.lock().unwrap();
+    /// Checks if a request is permitted.
+    /// Returns true if Closed, or if Open/HalfOpen logic allows a probe.
+    pub async fn is_call_permitted(&self) -> bool {
+        let mut inner = self.inner.lock().await;
+        
         match inner.state {
             State::Closed => true,
             State::Open => {
                 if let Some(last_fail) = inner.last_failure_time {
                     if last_fail.elapsed() >= inner.open_timeout {
+                        // Transition to HalfOpen for a probe
                         inner.state = State::HalfOpen;
                         return true;
                     }
@@ -48,35 +55,44 @@ impl AppCircuitBreaker {
                 false
             }
             State::HalfOpen => {
-                // In a more complex implementation, we might want to ensure only one request 
-                // acts as the "probe". For now, we allow calls in HalfOpen. 
-                // If they succeed, we close. If fail, we open.
-                true
+                // Only one probe allowed. If we are already in HalfOpen, 
+                // it means a probe is in flight. Reject others.
+                false
             }
         }
     }
 
-    pub fn on_success(&self) {
-        let mut inner = self.inner.lock().unwrap();
+    pub async fn on_success(&self) {
+        let mut inner = self.inner.lock().await;
+        
         if inner.state == State::HalfOpen {
             inner.state = State::Closed;
-            inner.failure_count = 0;
+            inner.failures.clear(); // Reset failure history on successful probe
             inner.last_failure_time = None;
         } else if inner.state == State::Closed {
-            // Optional: Reset failure count on success? 
-            // Usually yes, or sliding window. Simple count reset is fine.
-            inner.failure_count = 0;
+            // Optional: Reset failures on success in Closed state?
+            // Usually valid failures inside the window should imply "system is shaky",
+            // but a success usually implies "system is healthy".
+            // Implementation choice: We clear failures to reward success.
+            inner.failures.clear(); 
         }
     }
 
-    pub fn on_failure(&self) {
-        let mut inner = self.inner.lock().unwrap();
-        inner.failure_count += 1;
-        inner.last_failure_time = Some(Instant::now());
+    pub async fn on_failure(&self) {
+        let mut inner = self.inner.lock().await;
+        let now = Instant::now();
+        
+        // Add new failure
+        inner.failures.push(now);
+        inner.last_failure_time = Some(now);
+
+        // Prune old failures based on sliding window
+        let window = inner.failure_window;
+        inner.failures.retain(|&t| now.duration_since(t) <= window);
 
         match inner.state {
             State::Closed => {
-                if inner.failure_count >= inner.failure_threshold {
+                if inner.failures.len() >= inner.failure_threshold {
                     inner.state = State::Open;
                 }
             }
@@ -84,13 +100,14 @@ impl AppCircuitBreaker {
                 inner.state = State::Open;
             }
             State::Open => {
-                // Restart timer
-                inner.last_failure_time = Some(Instant::now());
+                // Already open, just updated last_failure_time
             }
         }
     }
 }
 
 pub fn create_circuit_breaker() -> AppCircuitBreaker {
-    AppCircuitBreaker::new(3, Duration::from_secs(30))
+    // 3 failures within 60 seconds trigger Open state.
+    // Open state lasts 30 seconds before attempting HalfOpen.
+    AppCircuitBreaker::new(3, Duration::from_secs(30), Duration::from_secs(60))
 }

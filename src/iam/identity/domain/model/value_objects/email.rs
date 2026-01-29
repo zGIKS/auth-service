@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use trust_dns_resolver::TokioAsyncResolver;
+use hickory_resolver::TokioAsyncResolver;
 use validator::Validate;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Validate)]

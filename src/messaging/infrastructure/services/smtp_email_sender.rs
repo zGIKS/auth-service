@@ -56,7 +56,7 @@ impl EmailSenderService for SmtpEmailSender {
         subject: &Subject,
         body: &Body,
     ) -> Result<(), MessagingError> {
-        if !self.circuit_breaker.is_call_permitted() {
+        if !self.circuit_breaker.is_call_permitted().await {
             return Err(MessagingError::SendError("Circuit breaker open".to_string()));
         }
 
@@ -84,11 +84,11 @@ impl EmailSenderService for SmtpEmailSender {
 
         match result {
             Ok(_) => {
-                self.circuit_breaker.on_success();
+                self.circuit_breaker.on_success().await;
                 Ok(())
             }
             Err(e) => {
-                self.circuit_breaker.on_failure();
+                self.circuit_breaker.on_failure().await;
                 Err(e)
             }
         }

@@ -55,7 +55,7 @@ impl GoogleOAuthClient {
 #[async_trait]
 impl GoogleOAuthService for GoogleOAuthClient {
     async fn exchange_code(&self, code: String) -> Result<GoogleUser, FederationError> {
-        if !self.circuit_breaker.is_call_permitted() {
+        if !self.circuit_breaker.is_call_permitted().await {
             return Err(FederationError::Internal(
                 "Circuit breaker is open".to_string(),
             ));
@@ -124,11 +124,11 @@ impl GoogleOAuthService for GoogleOAuthClient {
 
         match result {
             Ok(val) => {
-                self.circuit_breaker.on_success();
+                self.circuit_breaker.on_success().await;
                 Ok(val)
             }
             Err(e) => {
-                self.circuit_breaker.on_failure();
+                self.circuit_breaker.on_failure().await;
                 Err(e)
             }
         }
