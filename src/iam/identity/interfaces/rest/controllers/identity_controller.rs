@@ -83,7 +83,7 @@ pub async fn register_identity(
     let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis.clone());
 
     // Messaging / Email Service Construction
-    let smtp_sender = match SmtpEmailSender::new() {
+    let smtp_sender = match SmtpEmailSender::new(state.circuit_breaker.clone()) {
         Ok(s) => s,
         Err(e) => {
             tracing::error!("Failed to initialize email sender: {}", e);
@@ -191,7 +191,7 @@ pub async fn confirm_registration(
     let pending_repo = PendingIdentityRepositoryImpl::new(state.redis.clone());
     let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis.clone());
 
-    let smtp_sender = match SmtpEmailSender::new() {
+    let smtp_sender = match SmtpEmailSender::new(state.circuit_breaker.clone()) {
         Ok(s) => s,
         Err(e) => {
             tracing::error!("Failed to initialize email sender: {}", e);
@@ -292,7 +292,7 @@ pub async fn request_password_reset(
     let pending_repo = PendingIdentityRepositoryImpl::new(state.redis.clone());
     let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis.clone());
 
-    let smtp_sender = match SmtpEmailSender::new() {
+    let smtp_sender = match SmtpEmailSender::new(state.circuit_breaker.clone()) {
         Ok(s) => s,
         Err(e) => {
             tracing::error!("Failed to initialize email sender: {}", e);
@@ -372,7 +372,7 @@ pub async fn reset_password(
     let pending_repo = PendingIdentityRepositoryImpl::new(state.redis.clone());
     let password_reset_repo = PasswordResetTokenRepositoryImpl::new(state.redis.clone());
 
-    let smtp_sender = match SmtpEmailSender::new() {
+    let smtp_sender = match SmtpEmailSender::new(state.circuit_breaker.clone()) {
         Ok(s) => s,
         Err(e) => {
             tracing::error!("Failed to initialize email sender: {}", e);

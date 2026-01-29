@@ -1,6 +1,8 @@
 use redis::Client;
 use sea_orm::DatabaseConnection;
 
+use crate::shared::infrastructure::circuit_breaker::AppCircuitBreaker;
+
 #[derive(Clone)]
 pub struct AppState {
     pub db: DatabaseConnection,
@@ -14,6 +16,7 @@ pub struct AppState {
     pub google_client_id: String,
     pub google_client_secret: String,
     pub google_redirect_uri: String,
+    pub circuit_breaker: AppCircuitBreaker,
 }
 
 impl axum::extract::FromRef<AppState> for DatabaseConnection {

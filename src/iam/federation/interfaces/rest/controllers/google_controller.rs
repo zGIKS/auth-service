@@ -55,6 +55,7 @@ pub async fn google_callback(
         state.google_client_id.clone(),
         state.google_client_secret.clone(),
         state.google_redirect_uri.clone(),
+        state.circuit_breaker.clone(),
     );
 
     let identity_repo = IdentityRepositoryImpl::new(state.db.clone());

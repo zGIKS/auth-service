@@ -10,6 +10,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use auth_service::shared::infrastructure::persistence::redis as redis_infra;
+use auth_service::shared::infrastructure::circuit_breaker::create_circuit_breaker;
 
 #[tokio::main]
 async fn main() {
@@ -81,6 +82,7 @@ async fn main() {
         google_client_id,
         google_client_secret,
         google_redirect_uri,
+        circuit_breaker: create_circuit_breaker(),
     };
 
     let app = Router::new()

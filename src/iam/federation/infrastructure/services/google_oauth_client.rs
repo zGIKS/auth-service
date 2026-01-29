@@ -5,6 +5,7 @@ use crate::iam::federation::domain::{
     error::FederationError, model::value_objects::google_user::GoogleUser,
     services::google_oauth_service::GoogleOAuthService,
 };
+use crate::shared::infrastructure::circuit_breaker::AppCircuitBreaker;
 
 #[derive(Debug, Deserialize)]
 struct GoogleTokenResponse {
@@ -31,15 +32,22 @@ pub struct GoogleOAuthClient {
     client_id: String,
     client_secret: String,
     redirect_uri: String,
+    circuit_breaker: AppCircuitBreaker,
 }
 
 impl GoogleOAuthClient {
-    pub fn new(client_id: String, client_secret: String, redirect_uri: String) -> Self {
+    pub fn new(
+        client_id: String,
+        client_secret: String,
+        redirect_uri: String,
+        circuit_breaker: AppCircuitBreaker,
+    ) -> Self {
         Self {
             client: reqwest::Client::new(),
             client_id,
             client_secret,
             redirect_uri,
+            circuit_breaker,
         }
     }
 }
@@ -47,62 +55,82 @@ impl GoogleOAuthClient {
 #[async_trait]
 impl GoogleOAuthService for GoogleOAuthClient {
     async fn exchange_code(&self, code: String) -> Result<GoogleUser, FederationError> {
-        let params = [
-            ("code", code),
-            ("client_id", self.client_id.clone()),
-            ("client_secret", self.client_secret.clone()),
-            ("redirect_uri", self.redirect_uri.clone()),
-            ("grant_type", "authorization_code".to_string()),
-        ];
-
-        let token_response = self
-            .client
-            .post("https://oauth2.googleapis.com/token")
-            .form(&params)
-            .send()
-            .await
-            .map_err(|e| FederationError::TokenExchange(e.to_string()))?;
-
-        if !token_response.status().is_success() {
-            let status = token_response.status();
-            let body = token_response.text().await.unwrap_or_default();
-            return Err(FederationError::TokenExchange(format!(
-                "status: {status}, body: {body}"
-            )));
+        if !self.circuit_breaker.is_call_permitted() {
+            return Err(FederationError::Internal(
+                "Circuit breaker is open".to_string(),
+            ));
         }
 
-        let tokens: GoogleTokenResponse = token_response
-            .json()
-            .await
-            .map_err(|e| FederationError::TokenExchange(e.to_string()))?;
+        let result = async {
+            let params = [
+                ("code", code),
+                ("client_id", self.client_id.clone()),
+                ("client_secret", self.client_secret.clone()),
+                ("redirect_uri", self.redirect_uri.clone()),
+                ("grant_type", "authorization_code".to_string()),
+            ];
 
-        let userinfo_response = self
-            .client
-            .get("https://www.googleapis.com/oauth2/v3/userinfo")
-            .bearer_auth(&tokens.access_token)
-            .send()
-            .await
-            .map_err(|e| FederationError::UserInfo(e.to_string()))?;
+            let token_response = self
+                .client
+                .post("https://oauth2.googleapis.com/token")
+                .form(&params)
+                .send()
+                .await
+                .map_err(|e| FederationError::TokenExchange(e.to_string()))?;
 
-        if !userinfo_response.status().is_success() {
-            let status = userinfo_response.status();
-            let body = userinfo_response.text().await.unwrap_or_default();
-            return Err(FederationError::UserInfo(format!(
-                "status: {status}, body: {body}"
-            )));
+            if !token_response.status().is_success() {
+                let status = token_response.status();
+                let body = token_response.text().await.unwrap_or_default();
+                return Err(FederationError::TokenExchange(format!(
+                    "status: {status}, body: {body}"
+                )));
+            }
+
+            let tokens: GoogleTokenResponse = token_response
+                .json()
+                .await
+                .map_err(|e| FederationError::TokenExchange(e.to_string()))?;
+
+            let userinfo_response = self
+                .client
+                .get("https://www.googleapis.com/oauth2/v3/userinfo")
+                .bearer_auth(&tokens.access_token)
+                .send()
+                .await
+                .map_err(|e| FederationError::UserInfo(e.to_string()))?;
+
+            if !userinfo_response.status().is_success() {
+                let status = userinfo_response.status();
+                let body = userinfo_response.text().await.unwrap_or_default();
+                return Err(FederationError::UserInfo(format!(
+                    "status: {status}, body: {body}"
+                )));
+            }
+
+            let userinfo: GoogleUserInfoResponse = userinfo_response
+                .json()
+                .await
+                .map_err(|e| FederationError::UserInfo(e.to_string()))?;
+
+            Ok(GoogleUser {
+                sub: userinfo.sub,
+                email: userinfo.email,
+                email_verified: userinfo.email_verified.unwrap_or(false),
+                name: userinfo.name,
+                picture: userinfo.picture,
+            })
         }
+        .await;
 
-        let userinfo: GoogleUserInfoResponse = userinfo_response
-            .json()
-            .await
-            .map_err(|e| FederationError::UserInfo(e.to_string()))?;
-
-        Ok(GoogleUser {
-            sub: userinfo.sub,
-            email: userinfo.email,
-            email_verified: userinfo.email_verified.unwrap_or(false),
-            name: userinfo.name,
-            picture: userinfo.picture,
-        })
+        match result {
+            Ok(val) => {
+                self.circuit_breaker.on_success();
+                Ok(val)
+            }
+            Err(e) => {
+                self.circuit_breaker.on_failure();
+                Err(e)
+            }
+        }
     }
 }
