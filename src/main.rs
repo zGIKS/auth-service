@@ -9,7 +9,9 @@ use sea_orm::{ConnectionTrait, Database, Schema};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+use auth_service::shared::infrastructure::circuit_breaker::create_circuit_breaker;
 use auth_service::shared::infrastructure::persistence::redis as redis_infra;
+use auth_service::shared::interfaces::rest::middleware::rate_limit_middleware;
 
 #[tokio::main]
 async fn main() {
@@ -48,6 +50,16 @@ async fn main() {
         .parse()
         .expect("PASSWORD_RESET_TTL_SECONDS must be a number");
 
+    let lockout_threshold: u64 = std::env::var("LOCKOUT_THRESHOLD")
+        .expect("LOCKOUT_THRESHOLD must be set")
+        .parse()
+        .expect("LOCKOUT_THRESHOLD must be a number");
+
+    let lockout_duration_seconds: u64 = std::env::var("LOCKOUT_DURATION_SECONDS")
+        .expect("LOCKOUT_DURATION_SECONDS must be set")
+        .parse()
+        .expect("LOCKOUT_DURATION_SECONDS must be a number");
+
     let frontend_url = std::env::var("FRONTEND_URL").ok();
 
     let google_client_id = std::env::var("GOOGLE_CLIENT_ID").expect("GOOGLE_CLIENT_ID must be set");
@@ -78,9 +90,12 @@ async fn main() {
         pending_registration_ttl_seconds,
         password_reset_ttl_seconds,
         frontend_url,
+        lockout_threshold,
+        lockout_duration_seconds,
         google_client_id,
         google_client_secret,
         google_redirect_uri,
+        circuit_breaker: create_circuit_breaker(),
     };
 
     let app = Router::new()
@@ -91,10 +106,12 @@ async fn main() {
         .route("/api/v1/auth/verify", get(iam::authentication::interfaces::rest::controllers::authentication_controller::verify_token))
         .route("/api/v1/auth/google", get(iam::federation::interfaces::rest::controllers::google_controller::redirect_to_google))
         .route("/api/v1/auth/google/callback", get(iam::federation::interfaces::rest::controllers::google_controller::google_callback))
+        .route("/api/v1/auth/google/claim", post(iam::federation::interfaces::rest::controllers::google_controller::claim_token))
         .route("/api/v1/identity/confirm-registration", get(iam::identity::interfaces::rest::controllers::identity_controller::confirm_registration))
         .route("/api/v1/identity/forgot-password", post(iam::identity::interfaces::rest::controllers::identity_controller::request_password_reset))
         .route("/api/v1/identity/reset-password", post(iam::identity::interfaces::rest::controllers::identity_controller::reset_password))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", port);
@@ -106,5 +123,10 @@ async fn main() {
         port
     );
 
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }

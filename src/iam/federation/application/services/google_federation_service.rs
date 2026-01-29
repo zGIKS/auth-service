@@ -129,11 +129,7 @@ where
             .map_err(|e| FederationError::Internal(e.to_string()))?;
 
         self.session_repository
-            .save_refresh_token(
-                user_id,
-                &refresh_token,
-                self.refresh_token_duration_seconds,
-            )
+            .save_refresh_token(user_id, &refresh_token, self.refresh_token_duration_seconds)
             .await
             .map_err(|e| FederationError::Internal(e.to_string()))?;
 

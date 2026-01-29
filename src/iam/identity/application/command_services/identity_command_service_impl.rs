@@ -134,8 +134,8 @@ where
 
         // Send Verification Email
         // Construct the verification link pointing to the FRONTEND
-        let frontend_url =
-            std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+        let frontend_url = std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set");
+        validate_frontend_url(&frontend_url)?;
         let verification_link = format!("{}/verify?token={}", frontend_url, token.value());
 
         self.notification_service
@@ -228,8 +228,8 @@ where
         }
 
         // 4. Send Email
-        let frontend_url =
-            std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+        let frontend_url = std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set");
+        validate_frontend_url(&frontend_url)?;
         let reset_link = format!("{}/reset-password?token={}", frontend_url, token.value());
 
         self.notification_service
@@ -288,5 +288,18 @@ where
             .map_err(|e| DomainError::InternalError(format!("Failed to revoke sessions: {}", e)))?;
 
         Ok(())
+    }
+}
+
+fn validate_frontend_url(url: &str) -> Result<(), DomainError> {
+    if url.starts_with("https://") {
+        Ok(())
+    } else if url.starts_with("http://localhost") || url.starts_with("http://127.0.0.1") {
+        // Allow HTTP for local development
+        Ok(())
+    } else {
+        Err(DomainError::InternalError(
+            "FRONTEND_URL must use HTTPS for security, or HTTP only for localhost/127.0.0.1 in development".to_string(),
+        ))
     }
 }

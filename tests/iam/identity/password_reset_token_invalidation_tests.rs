@@ -26,6 +26,8 @@ async fn test_multiple_password_reset_requests_invalidate_previous_tokens() {
 
     let test_email = Email::new("user@example.com".to_string()).unwrap();
 
+    unsafe { std::env::set_var("FRONTEND_URL", "http://localhost:3000") };
+
     // User exists for all requests
     mock_repo
         .expect_find_by_email()
@@ -92,6 +94,8 @@ async fn test_multiple_password_reset_requests_invalidate_previous_tokens() {
         "Third password reset request should succeed"
     );
 
+    // unsafe { std::env::remove_var("FRONTEND_URL") };
+
     // Note: The actual token invalidation happens in the repository layer
     // password_reset_token_repository_impl.rs:
     //
@@ -125,6 +129,8 @@ async fn test_password_reset_handles_concurrent_requests_safely() {
     let reset_ttl = Duration::from_secs(900);
 
     let test_email = Email::new("concurrent@example.com".to_string()).unwrap();
+
+    unsafe { std::env::set_var("FRONTEND_URL", "http://localhost:3000") };
 
     // User exists
     mock_repo
@@ -176,4 +182,6 @@ async fn test_password_reset_handles_concurrent_requests_safely() {
     // - Service catches the error and returns Ok() (security: don't reveal state)
     // - User receives "success" message but no email is sent
     // - Lock expires after 10 seconds to prevent deadlock
+
+    // unsafe { std::env::remove_var("FRONTEND_URL") };
 }

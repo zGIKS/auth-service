@@ -33,13 +33,13 @@ async fn test_reset_password_success() {
         .returning(move |_| Ok(Some(test_email.to_string())));
 
     // 2. Find user by email
-    let identity_id_clone = identity_id.clone();
+    let identity_id_copy = identity_id;
     mock_repo
         .expect_find_by_email()
         .times(1)
         .returning(move |email| {
             let identity = Identity::new(
-                identity_id_clone.clone(),
+                identity_id_copy,
                 email.clone(),
                 Password::new("old_hashed_password_valid_length".to_string()).unwrap(),
                 AuthProvider::Email,
@@ -121,7 +121,7 @@ async fn test_reset_password_invalid_token() {
     let result = service.reset_password(command).await;
 
     match result {
-        Err(DomainError::InvalidToken) => assert!(true),
+        Err(DomainError::InvalidToken) => {} // Expected
         _ => panic!("Expected InvalidToken error, got {:?}", result),
     }
 }
@@ -309,7 +309,7 @@ async fn test_reset_password_user_not_found_for_valid_token() {
     let result = service.reset_password(command).await;
 
     match result {
-        Err(DomainError::InternalError(msg)) if msg.contains("Identity not found") => assert!(true),
+        Err(DomainError::InternalError(msg)) if msg.contains("Identity not found") => {} // Expected
         _ => panic!(
             "Expected InternalError for missing identity, got {:?}",
             result

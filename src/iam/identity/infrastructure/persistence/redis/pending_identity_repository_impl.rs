@@ -88,14 +88,14 @@ impl PendingIdentityRepository for PendingIdentityRepositoryImpl {
             .await
             .map_err(|e| DomainError::InternalError(e.to_string()))?;
 
-        if let Some(v) = value {
-            if let Ok(pending) = serde_json::from_str::<PendingIdentity>(&v) {
-                let email_key = format!("pending_email:{}", pending.email);
-                let _: () = con
-                    .del(email_key)
-                    .await
-                    .map_err(|e| DomainError::InternalError(e.to_string()))?;
-            }
+        if let Some(v) = value
+            && let Ok(pending) = serde_json::from_str::<PendingIdentity>(&v)
+        {
+            let email_key = format!("pending_email:{}", pending.email);
+            let _: () = con
+                .del(email_key)
+                .await
+                .map_err(|e| DomainError::InternalError(e.to_string()))?;
         }
 
         let _: () = con

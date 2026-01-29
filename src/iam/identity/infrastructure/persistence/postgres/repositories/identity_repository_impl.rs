@@ -61,7 +61,7 @@ impl IdentityRepository for IdentityRepositoryImpl {
                 let email =
                     Email::new(m.email).map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
                 let provider = AuthProvider::from_str(&m.auth_provider)
-                    .map_err(|e| Box::<dyn Error + Send + Sync>::from(e))?;
+                    .map_err(Box::<dyn Error + Send + Sync>::from)?;
 
                 let audit = AuditableModel {
                     created_at: m.created_at.into(),
@@ -71,8 +71,7 @@ impl IdentityRepository for IdentityRepositoryImpl {
                 Ok(Some(DomainIdentity::new(
                     IdentityId::from_uuid(m.id),
                     email,
-                    Password::new(m.password_hash)
-                        .map_err(|e| Box::<dyn Error + Send + Sync>::from(e))?,
+                    Password::new(m.password_hash).map_err(Box::<dyn Error + Send + Sync>::from)?,
                     provider,
                     audit,
                 )))
