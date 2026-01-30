@@ -88,11 +88,9 @@ where
         &self,
         mut command: RegisterIdentityCommand,
     ) -> Result<(Identity, String), DomainError> {
-        // Validate MX records
-        if let Err(e) = command.email.validate_mx().await {
-            return Err(DomainError::InvalidEmailDomain(e.to_string()));
-        }
-
+        // Note: MX validation removed - email confirmation is sufficient validation
+        // Avoids: DNS failures, latency, false negatives, and external dependencies
+        
         match self.identity_repository.find_by_email(&command.email).await {
             Ok(Some(_)) => return Err(DomainError::EmailAlreadyExists),
             Ok(None) => {}
