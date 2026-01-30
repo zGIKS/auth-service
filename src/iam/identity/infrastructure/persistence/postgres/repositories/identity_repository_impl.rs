@@ -30,21 +30,23 @@ impl IdentityRepository for IdentityRepositoryImpl {
         &self,
         identity: DomainIdentity,
     ) -> Result<DomainIdentity, Box<dyn Error + Send + Sync>> {
-        // Password is already hashed by the service layer
-        let password_hash_value = identity.password().value().to_string();
+        let insert_model = Self::build_active_model(&identity);
 
-        let active_model = ActiveModel {
-            id: Set(identity.id().0),
-            email: Set(identity.email().value().to_string()),
-            password_hash: Set(password_hash_value),
-            auth_provider: Set(identity.provider().to_string()),
-            created_at: Set(identity.audit().created_at.into()),
-            updated_at: Set(identity.audit().updated_at.into()),
-        };
-
-        IdentityEntity::insert(active_model).exec(&self.db).await?;
-
-        Ok(identity)
+        match IdentityEntity::insert(insert_model).exec(&self.db).await {
+            Ok(_) => Ok(identity),
+            Err(err) => {
+                if Self::is_duplicate_key_error(&err) {
+                    let update_model = Self::build_active_model(&identity);
+                    IdentityEntity::update(update_model)
+                        .exec(&self.db)
+                        .await
+                        .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+                    Ok(identity)
+                } else {
+                    Err(Box::new(err))
+                }
+            }
+        }
     }
 
     async fn find_by_email(
@@ -78,5 +80,22 @@ impl IdentityRepository for IdentityRepositoryImpl {
             }
             None => Ok(None),
         }
+    }
+}
+
+impl IdentityRepositoryImpl {
+    fn build_active_model(identity: &DomainIdentity) -> ActiveModel {
+        ActiveModel {
+            id: Set(identity.id().value()),
+            email: Set(identity.email().value().to_string()),
+            password_hash: Set(identity.password().value().to_string()),
+            auth_provider: Set(identity.provider().to_string()),
+            created_at: Set(identity.audit().created_at.into()),
+            updated_at: Set(identity.audit().updated_at.into()),
+        }
+    }
+
+    fn is_duplicate_key_error(err: &DbErr) -> bool {
+        matches!(err, DbErr::Exec(exec_err) if exec_err.to_string().contains("duplicate key value"))
     }
 }
