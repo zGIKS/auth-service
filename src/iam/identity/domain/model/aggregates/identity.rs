@@ -58,7 +58,7 @@ impl Identity {
 
     pub fn change_password(&mut self, new_password: Password) {
         self.password = new_password;
-        // Optionally add audit log here
+        self.audit.update();
     }
 
     pub fn audit(&self) -> &AuditableModel {
