@@ -2,8 +2,6 @@ use auth_service::shared::infrastructure::services::account_lockout::{
     AccountLockoutService, AccountLockoutVerifier,
 };
 use redis::Client;
-use std::time::Duration;
-use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_lockout_isolation_by_ip() {

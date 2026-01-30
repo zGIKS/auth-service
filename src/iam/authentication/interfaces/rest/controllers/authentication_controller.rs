@@ -32,7 +32,6 @@ use crate::shared::interfaces::rest::app_state::AppState;
 use crate::shared::interfaces::rest::error_response::ErrorResponse;
 
 use axum::{
-    Extension,
     extract::{ConnectInfo, Json, Query, State},
     http::StatusCode,
     response::IntoResponse,
@@ -53,22 +52,16 @@ use validator::Validate;
 )]
 pub async fn signin(
     State(state): State<AppState>,
-    // Attempt to extract ConnectInfo if available
-    Extension(connect_info): Extension<Option<ConnectInfo<SocketAddr>>>,
-    // We can also check headers from the request if we used Request extractor,
-    // but here we are using Json extractor which consumes body.
-    // To get headers + body, we'd need to change signature, but let's stick to ConnectInfo for now
-    // or rely on what Axum provides.
-    // Actually, to get headers we need `HeaderMap`.
-    // Let's simplify and try to get IP from ConnectInfo extension which we know is set in main.rs
+    // ConnectInfo is available because we use into_make_service_with_connect_info in main.rs
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(resource): Json<SigninResource>,
 ) -> impl IntoResponse {
     if let Err(e) = resource.validate() {
         return (StatusCode::BAD_REQUEST, e.to_string()).into_response();
     }
 
-    // Extract IP
-    let ip_address = connect_info.map(|ci| ci.0.ip().to_string());
+    // Extract IP from ConnectInfo
+    let ip_address = Some(addr.ip().to_string());
 
     let identity_repo = IdentityRepositoryImpl::new(state.db.clone());
     let identity_facade = IdentityFacadeImpl::new(identity_repo);
