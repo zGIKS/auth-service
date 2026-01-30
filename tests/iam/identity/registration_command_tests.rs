@@ -103,39 +103,9 @@ async fn test_register_identity_duplicate_email() {
     }
 }
 
-#[tokio::test]
-async fn test_register_identity_invalid_mx() {
-    let mock_repo = MockIdentityRepository::new();
-    let mock_pending_repo = MockPendingIdentityRepository::new();
-    let mock_password_reset_repo = MockPasswordResetTokenRepository::new();
-    let mock_notification_service = MockNotificationService::new();
-    let mock_session_invalidation_service = MockSessionInvalidationService::new();
-    let ttl = Duration::from_secs(900);
-    let reset_ttl = Duration::from_secs(900);
-
-    let service = IdentityCommandServiceImpl::new(
-        mock_repo,
-        mock_pending_repo,
-        mock_password_reset_repo,
-        mock_notification_service,
-        mock_session_invalidation_service,
-        ttl,
-        reset_ttl,
-    );
-
-    // This domain definitely doesn't exist
-    let email = Email::new("user@thisdomaindefinitelydoesnotexist12345.com".to_string()).unwrap();
-
-    let password = Password::new("SecurePass123!".to_string()).unwrap();
-    let command = RegisterIdentityCommand::new(email, password, AuthProvider::Email);
-
-    let result: Result<(Identity, String), DomainError> = service.handle(command).await;
-
-    match result {
-        Err(DomainError::InvalidEmailDomain(_)) => {} // Expected
-        _ => panic!("Expected InvalidEmailDomain error, got {:?}", result),
-    }
-}
+// Test removed: MX validation was removed from registration flow
+// Email validation now relies on email confirmation (more reliable)
+// MX validation caused: DNS failures, latency, false negatives
 
 #[tokio::test]
 async fn test_password_is_hashed_before_saving_pending() {
