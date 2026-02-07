@@ -44,7 +44,7 @@ use crate::iam::identity::application::outbound::acl::email_service::EmailServic
 
 #[utoipa::path(
     post,
-    path = "/api/v1/auth/sign-up",
+    path = "/api/v1/identity/sign-up",
     tag = "identity",
     request_body = RegisterIdentityRequest,
     responses(
