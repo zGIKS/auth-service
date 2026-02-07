@@ -6,6 +6,7 @@ use axum::{
 };
 use dotenvy::dotenv;
 use sea_orm::{ConnectionTrait, Database, Schema};
+use tracing_subscriber::EnvFilter;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -16,6 +17,9 @@ use auth_service::shared::interfaces::rest::middleware::rate_limit_middleware;
 #[tokio::main]
 async fn main() {
     dotenv().ok();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+        .init();
 
     let port: u16 = std::env::var("PORT")
         .expect("PORT must be set")
