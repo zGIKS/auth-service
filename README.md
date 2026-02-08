@@ -1,112 +1,102 @@
-# Auth Service (IAM)
+# IAM Auth Service
 
-A Domain-Driven Design (DDD) implementation of an Identity and Access Management (IAM) service built with Rust and Axum.
+Open-source IAM service built with Rust + Axum, designed with **Domain-Driven Design (DDD)**.
 
-## Features
+## Project Summary
 
-- **Identity Management**: User registration, email confirmation, password reset
-- **Authentication**: Signin/logout, JWT token management, session handling
-- **Federation**: Google OAuth integration
-- **Security**: Password hashing, token validation, session invalidation
-- **Messaging**: Email notifications via SMTP
-- **Persistence**: PostgreSQL for identities, Redis for sessions and temporary data
-- **API Documentation**: OpenAPI/Swagger UI integration
+This project covers the full identity and access lifecycle:
 
-## Architecture
+- User registration with email confirmation.
+- Sign in/sign out with JWT and refresh tokens.
+- Password recovery and reset.
+- Google OAuth federation.
+- Security controls (rate limiting, lockout, session invalidation).
 
-This service follows Domain-Driven Design principles with clear separation of concerns:
+## What Problem It Solves
 
-- **Domain Layer**: Core business logic, entities, value objects, domain services
-- **Application Layer**: Use cases orchestration, ACL for external integrations
-- **Infrastructure Layer**: Database repositories, external service integrations
-- **Interfaces Layer**: REST API controllers, DTOs
+It centralizes common authentication and identity workflows in a single service, while keeping business rules, infrastructure, and APIs clearly separated by domain.
+
+## Architecture (DDD)
+
+The service is organized into bounded contexts and layers:
+
+- **Identity**: registration, email confirmation, password reset.
+- **Authentication**: sign in, refresh, logout, token verification.
+- **Federation**: external authentication (Google OAuth).
+- **Messaging**: email delivery through SMTP.
+- **Shared**: cross-cutting concerns (AppState, middleware, lockout, rate limiting, circuit breaker).
+
+Each context follows `domain`, `application`, `infrastructure`, and `interfaces` layers.
+
+## C4 Diagrams
+
+### 1. Context Diagram
+
+Shows the IAM system and its relationship with external actors/systems (user, frontend, Google OAuth, SMTP).
+
+![IAM Context Diagram](docs/assets/iam-context-dark.png)
+
+### 2. Container Diagram
+
+Shows the main containers: Axum API, PostgreSQL, and Redis, and how they interact.
+
+![IAM Container Diagram](docs/assets/iam-containers-dark.png)
+
+### 3. Component Diagram
+
+Shows the internal API components (interfaces, application services, repositories, shared module, and messaging module).
+
+![IAM Component Diagram](docs/assets/iam-components-dark.png)
+
+## Module Documentation
+
+- `docs/authentication-bounded-context.md`
+- `docs/identity-bounded-context.md`
+- `docs/federation-bounded-context.md`
+- `docs/messaging-bounded-context.md`
+- `docs/shared-module.md`
+- `docs/c4-auth-service.dsl`
 
 ## Requirements
 
-- Rust 1.70 or higher
+- Rust 1.70+
 - PostgreSQL
 - Redis
-- SMTP server for email notifications
+- SMTP server
 
-## Installation
-
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd auth-service-main
-   ```
-
-2. Install dependencies:
-   ```bash
-   cargo build
-   ```
-
-3. Set up databases (PostgreSQL and Redis)
-
-4. Configure environment variables (see .env.example)
-
-## Configuration
-
-Create a `.env` file in the project root with necessary configuration:
+## Minimal `.env` Configuration
 
 ```env
+PORT=3000
 DATABASE_URL=postgres://user:password@localhost/auth_service
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=your-secret-key
+SESSION_DURATION_SECONDS=900
+REFRESH_TOKEN_DURATION_SECONDS=604800
+PENDING_REGISTRATION_TTL_SECONDS=900
+PASSWORD_RESET_TTL_SECONDS=900
+LOCKOUT_THRESHOLD=5
+LOCKOUT_DURATION_SECONDS=900
+FRONTEND_URL=http://localhost:3000
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/v1/auth/google/callback
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USERNAME=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
 ```
 
-## Running
+## Run
 
 ```bash
 cargo run
 ```
 
-The server will start at `http://localhost:3000`.
+Swagger UI: `http://localhost:3000/swagger-ui/`
 
-## API Documentation
-
-Access Swagger UI at `http://localhost:3000/swagger-ui/` for interactive API documentation.
-
-## Testing
+## Tests
 
 ```bash
 cargo test
-```
-
-## Documentation
-
-See [IAM Bounded Context Documentation](docs/IAM_Bounded_Context_Documentation.md) for detailed domain documentation.
-
-Returns a "Hello World" message.
-
-**Response:**
-- 200 OK: "Hello World"
-
-## Swagger Documentation
-
-Access the interactive documentation at: `http://localhost:<PORT>/swagger-ui`
-
-## Dependencies
-
-- `axum`: Web framework for Rust
-- `tokio`: Asynchronous runtime
-- `utoipa`: OpenAPI generation
-- `utoipa-swagger-ui`: Swagger UI interface
-- `dotenvy`: Environment variable loading
-
-## Project Structure
-
-```
-.
-├── Cargo.toml          # Rust project configuration
-├── .env                # Environment variables
-├── src/
-│   └── main.rs         # Main application code
-└── README.md           # This documentation
 ```
