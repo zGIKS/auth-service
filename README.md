@@ -68,6 +68,7 @@ Shows the internal API components (interfaces, application services, repositorie
 
 ```env
 PORT=8081
+APP_ENV=dev # dev | prod
 DATABASE_URL=postgres://user:password@localhost/auth_service
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=your-secret-key
@@ -94,6 +95,11 @@ cargo run
 ```
 
 Swagger UI: `http://localhost:8081/swagger-ui/`
+
+`APP_ENV` modes:
+
+- `APP_ENV=dev`: enables Swagger (`/swagger-ui`)
+- `APP_ENV=prod`: disables Swagger
 
 If you run the service in Docker and PostgreSQL/Redis are on your host machine, use `host.docker.internal` in `.env` instead of `localhost`.
 

@@ -11,6 +11,13 @@ REDIS_URL=redis://host.docker.internal:6379
 
 On Linux, add `--add-host=host.docker.internal:host-gateway` when running the container.
 
+Set `APP_ENV` in `.env` based on environment:
+
+```env
+APP_ENV=dev  # enables Swagger
+# APP_ENV=prod  # disables Swagger
+```
+
 ## Build Image
 
 ```bash
@@ -36,7 +43,7 @@ docker ps --filter name=auth-service
 docker logs -f auth-service
 ```
 
-Swagger UI: `http://localhost:8081/swagger-ui/`
+Swagger UI (dev only): `http://localhost:8081/swagger-ui/`
 
 ## Update Container After Code Changes
 

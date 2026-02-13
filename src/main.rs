@@ -26,12 +26,28 @@ use auth_service::shared::infrastructure::circuit_breaker::create_circuit_breake
 use auth_service::shared::infrastructure::persistence::redis as redis_infra;
 use auth_service::shared::interfaces::rest::middleware::rate_limit_middleware;
 
+fn parse_app_env() -> Result<String, Box<dyn std::error::Error>> {
+    let raw = std::env::var("APP_ENV").unwrap_or_else(|_| "dev".to_string());
+    let env = raw.to_lowercase();
+
+    match env.as_str() {
+        "dev" | "prod" => Ok(env),
+        _ => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("APP_ENV must be 'dev' or 'prod', got '{raw}'"),
+        )
+        .into()),
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
+
+    let app_env = parse_app_env()?;
 
     let port: u16 = std::env::var("PORT")
         .map_err(|_| "PORT must be set")?
@@ -161,8 +177,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(
             "/api/v1/identity/reset-password",
             post(iam::identity::interfaces::rest::controllers::identity_controller::reset_password),
-        )
-        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        );
+
+    let app = if app_env == "dev" {
+        app.merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
+    } else {
+        app
+    };
+    
+    let app = app
         .layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(|err: Box<dyn std::error::Error + Send + Sync>| async move {
@@ -202,10 +225,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| format!("Failed to bind to {}: {}", addr, e))?;
 
     println!("Servidor corriendo en http://localhost:{}", port);
-    println!(
-        "Swagger UI disponible en http://localhost:{}/swagger-ui",
-        port
-    );
+    if app_env == "dev" {
+        println!("Swagger UI disponible en http://localhost:{}/swagger-ui", port);
+    } else {
+        println!("Swagger UI deshabilitado en modo prod");
+    }
 
     axum::serve(
         listener,
