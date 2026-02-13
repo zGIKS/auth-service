@@ -10,28 +10,47 @@ use dotenvy::dotenv;
 async fn test_send_email_integration() {
     dotenv().ok();
 
-    // Skip test if SMTP config is missing (so CI doesn't fail without creds)
-    if std::env::var("SMTP_PASSWORD").is_err() {
-        println!("Skipping email test: SMTP_PASSWORD not set");
-        return;
+    // Prioritize TEST_SMTP_ variables, fallback to standard SMTP_ if not present
+    let host = std::env::var("TEST_SMTP_HOST").unwrap_or_else(|_| std::env::var("SMTP_HOST").unwrap_or_default());
+    let port = std::env::var("TEST_SMTP_PORT").unwrap_or_else(|_| std::env::var("SMTP_PORT").unwrap_or_default());
+    let username = std::env::var("TEST_SMTP_USERNAME").unwrap_or_else(|_| std::env::var("SMTP_USERNAME").unwrap_or_default());
+    let password = match std::env::var("TEST_SMTP_PASSWORD") {
+        Ok(v) => v,
+        Err(_) => match std::env::var("SMTP_PASSWORD") {
+            Ok(v) => v,
+            Err(_) => {
+                println!("Skipping email test: TEST_SMTP_PASSWORD or SMTP_PASSWORD not set");
+                return;
+            }
+        },
+    };
+    let from = std::env::var("TEST_SMTP_FROM").unwrap_or_else(|_| std::env::var("SMTP_FROM").unwrap_or_default());
+    
+    // For Resend, we must use a verified email or their official test addresses.
+    let to_addr = match std::env::var("TEST_SMTP_TO") {
+        Ok(v) => v,
+        Err(_) => {
+            println!("Skipping email test: TEST_SMTP_TO not set");
+            return;
+        }
+    };
+
+    // Override environment variables so SmtpEmailSender::new() picks them up
+    unsafe {
+        std::env::set_var("SMTP_HOST", host);
+        std::env::set_var("SMTP_PORT", port);
+        std::env::set_var("SMTP_USERNAME", username);
+        std::env::set_var("SMTP_PASSWORD", password);
+        std::env::set_var("SMTP_FROM", from);
     }
 
     let sender =
         SmtpEmailSender::new(create_circuit_breaker()).expect("Failed to create SMTP sender");
 
-    // Resend uses SMTP_USERNAME=resend (not an email), so target recipient must come from SMTP_TO.
-    let to_addr = match std::env::var("SMTP_TO") {
-        Ok(value) => value,
-        Err(_) => {
-            println!("Skipping email test: SMTP_TO not set");
-            return;
-        }
-    };
-
     let to = match EmailAddress::new(to_addr.clone()) {
         Ok(email) => email,
         Err(_) => {
-            println!("Skipping email test: SMTP_TO is not a valid email ({})", to_addr);
+            println!("Skipping email test: target recipient is not a valid email ({})", to_addr);
             return;
         }
     };
