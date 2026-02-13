@@ -91,8 +91,12 @@ where
                 rand::rng().fill_bytes(&mut random_bytes);
                 let placeholder_password = hex::encode(random_bytes);
 
-                let hashed = hash(placeholder_password, DEFAULT_COST)
-                    .map_err(|e| FederationError::Internal(e.to_string()))?;
+                let hashed = tokio::task::spawn_blocking(move || {
+                    hash(placeholder_password, DEFAULT_COST)
+                })
+                .await
+                .map_err(|e| FederationError::Internal(format!("Task join error: {}", e)))?
+                .map_err(|e| FederationError::Internal(e.to_string()))?;
                 let password = Password::new(hashed).map_err(FederationError::Internal)?;
 
                 let identity = Identity::new(

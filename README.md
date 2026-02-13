@@ -67,7 +67,8 @@ Shows the internal API components (interfaces, application services, repositorie
 ## Minimal `.env` Configuration
 
 ```env
-PORT=3000
+PORT=8081
+APP_ENV=dev # dev | prod
 DATABASE_URL=postgres://user:password@localhost/auth_service
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=your-secret-key
@@ -80,7 +81,7 @@ LOCKOUT_DURATION_SECONDS=900
 FRONTEND_URL=http://localhost:3000
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/v1/auth/google/callback
+GOOGLE_REDIRECT_URI=http://localhost:8081/api/v1/auth/google/callback
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USERNAME=your-email@gmail.com
@@ -93,7 +94,14 @@ SMTP_PASSWORD=your-app-password
 cargo run
 ```
 
-Swagger UI: `http://localhost:3000/swagger-ui/`
+Swagger UI: `http://localhost:8081/swagger-ui/`
+
+`APP_ENV` modes:
+
+- `APP_ENV=dev`: enables Swagger (`/swagger-ui`)
+- `APP_ENV=prod`: disables Swagger
+
+If you run the service in Docker and PostgreSQL/Redis are on your host machine, use `host.docker.internal` in `.env` instead of `localhost`.
 
 ## Tests
 

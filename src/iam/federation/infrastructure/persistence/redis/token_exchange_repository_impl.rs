@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use redis::AsyncCommands;
+use redis::{AsyncCommands, cmd};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use uuid::Uuid;
@@ -65,18 +65,14 @@ impl TokenExchangeRepository for TokenExchangeRepositoryImpl {
             .await
             .map_err(|e| FederationError::Internal(format!("Redis connection error: {}", e)))?;
 
-        let value: Option<String> = con
-            .get(&key)
+        // Atomic: get and delete in a single operation (Redis >= 6.2)
+        let value: Option<String> = cmd("GETDEL")
+            .arg(&key)
+            .query_async(&mut con)
             .await
-            .map_err(|e| FederationError::Internal(format!("Redis get error: {}", e)))?;
+            .map_err(|e| FederationError::Internal(format!("Redis GETDEL error: {}", e)))?;
 
         if let Some(v) = value {
-            // Delete immediately to prevent replay
-            let _: () = con
-                .del(&key)
-                .await
-                .map_err(|e| FederationError::Internal(format!("Redis delete error: {}", e)))?;
-
             let redis_tokens: RedisExchangeTokens = serde_json::from_str(&v)
                 .map_err(|e| FederationError::Internal(format!("Deserialization error: {}", e)))?;
 

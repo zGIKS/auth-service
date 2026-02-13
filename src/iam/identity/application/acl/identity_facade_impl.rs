@@ -29,7 +29,14 @@ impl<R: IdentityRepository> IdentityFacade for IdentityFacadeImpl<R> {
 
         match self.repository.find_by_email(&email_vo).await {
             Ok(Some(identity)) => {
-                let valid = verify(&password, identity.password().value())?;
+                let password_hash = identity.password().value().to_string();
+                let valid = tokio::task::spawn_blocking(move || {
+                    verify(&password, &password_hash)
+                })
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?
+                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
                 if valid {
                     Ok(Some(identity.id().value()))
                 } else {
